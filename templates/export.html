@@ -1,0 +1,278 @@
+
+{% extends "base.html" %}
+
+{% block title %}تصدير البيانات{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-download"></i> تصدير البيانات المتقدم</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" id="exportForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5><i class="fas fa-filter"></i> خيارات الفلترة</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">الحالة</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" value="all" id="all_status" checked>
+                                            <label class="form-check-label" for="all_status">
+                                                جميع الحالات
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input status-filter" type="checkbox" value="ارملة" id="widow" name="status">
+                                            <label class="form-check-label" for="widow">
+                                                أرملة
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input status-filter" type="checkbox" value="مطلقة" id="divorced" name="status">
+                                            <label class="form-check-label" for="divorced">
+                                                مطلقة
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input status-filter" type="checkbox" value="اعاقة" id="disability" name="status">
+                                            <label class="form-check-label" for="disability">
+                                                إعاقة
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input status-filter" type="checkbox" value="كبير بالعمر" id="elderly" name="status">
+                                            <label class="form-check-label" for="elderly">
+                                                كبير بالعمر
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input status-filter" type="checkbox" value="حالة صعبة" id="difficult" name="status">
+                                            <label class="form-check-label" for="difficult">
+                                                حالة صعبة
+                                            </label>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="date_from" class="form-label">من تاريخ</label>
+                                        <input type="date" class="form-control" id="date_from" name="date_from">
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="date_to" class="form-label">إلى تاريخ</label>
+                                        <input type="date" class="form-control" id="date_to" name="date_to">
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="search_text" class="form-label">البحث النصي</label>
+                                        <input type="text" class="form-control" id="search_text" name="search_text" placeholder="البحث في الاسم أو الرقم الوطني">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5><i class="fas fa-file"></i> خيارات التصدير</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">نوع الملف</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" value="excel" id="excel_format" name="format" checked>
+                                            <label class="form-check-label" for="excel_format">
+                                                <i class="fas fa-file-excel text-success"></i> ملف إكسل (.xlsx)
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" value="csv" id="csv_format" name="format">
+                                            <label class="form-check-label" for="csv_format">
+                                                <i class="fas fa-file-csv text-info"></i> ملف CSV
+                                            </label>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">طريقة التجميع</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" value="single" id="single_file" name="grouping" checked>
+                                            <label class="form-check-label" for="single_file">
+                                                ملف واحد مع جميع البيانات
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" value="separate" id="separate_files" name="grouping">
+                                            <label class="form-check-label" for="separate_files">
+                                                ملف منفصل لكل حالة
+                                            </label>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">الحقول المراد تصديرها</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" value="all_fields" id="all_fields" checked>
+                                            <label class="form-check-label" for="all_fields">
+                                                جميع الحقول
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input field-filter" type="checkbox" value="full_name" id="field_name" name="fields">
+                                            <label class="form-check-label" for="field_name">الاسم</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input field-filter" type="checkbox" value="national_id" id="field_id" name="fields">
+                                            <label class="form-check-label" for="field_id">الرقم الوطني</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input field-filter" type="checkbox" value="phone" id="field_phone" name="fields">
+                                            <label class="form-check-label" for="field_phone">الجوال</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input field-filter" type="checkbox" value="status" id="field_status" name="fields">
+                                            <label class="form-check-label" for="field_status">الحالة</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input field-filter" type="checkbox" value="family_members" id="field_family" name="fields">
+                                            <label class="form-check-label" for="field_family">أفراد الأسرة</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input field-filter" type="checkbox" value="address" id="field_address" name="fields">
+                                            <label class="form-check-label" for="field_address">العنوان</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-4">
+                        <div class="col-12 text-center">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-download"></i> تصدير البيانات
+                            </button>
+                            <a href="{{ url_for('view_citizens') }}" class="btn btn-secondary btn-lg ms-2">
+                                <i class="fas fa-arrow-left"></i> العودة
+                            </a>
+                        </div>
+                    </div>
+                </form>
+                
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="alert alert-info">
+                            <h5><i class="fas fa-info-circle"></i> معاينة البيانات</h5>
+                            <p>عدد السجلات المطابقة: <span id="record_count">-</span></p>
+                            <div id="preview_table"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle "جميع الحالات" checkbox
+    document.getElementById('all_status').addEventListener('change', function() {
+        const statusFilters = document.querySelectorAll('.status-filter');
+        statusFilters.forEach(filter => {
+            filter.checked = this.checked;
+            filter.disabled = this.checked;
+        });
+        updatePreview();
+    });
+    
+    // Handle individual status filters
+    document.querySelectorAll('.status-filter').forEach(filter => {
+        filter.addEventListener('change', function() {
+            const allStatus = document.getElementById('all_status');
+            const checkedFilters = document.querySelectorAll('.status-filter:checked');
+            
+            if (checkedFilters.length === 0) {
+                allStatus.checked = true;
+                document.querySelectorAll('.status-filter').forEach(f => f.disabled = true);
+            } else {
+                allStatus.checked = false;
+                document.querySelectorAll('.status-filter').forEach(f => f.disabled = false);
+            }
+            updatePreview();
+        });
+    });
+    
+    // Handle "جميع الحقول" checkbox
+    document.getElementById('all_fields').addEventListener('change', function() {
+        const fieldFilters = document.querySelectorAll('.field-filter');
+        fieldFilters.forEach(filter => {
+            filter.checked = this.checked;
+            filter.disabled = this.checked;
+        });
+    });
+    
+    // Handle individual field filters
+    document.querySelectorAll('.field-filter').forEach(filter => {
+        filter.addEventListener('change', function() {
+            const allFields = document.getElementById('all_fields');
+            const checkedFilters = document.querySelectorAll('.field-filter:checked');
+            
+            if (checkedFilters.length === 0) {
+                allFields.checked = true;
+                document.querySelectorAll('.field-filter').forEach(f => f.disabled = true);
+            } else {
+                allFields.checked = false;
+                document.querySelectorAll('.field-filter').forEach(f => f.disabled = false);
+            }
+        });
+    });
+    
+    // Update preview when filters change
+    document.querySelectorAll('input[type="date"], input[type="text"]').forEach(input => {
+        input.addEventListener('change', updatePreview);
+    });
+    
+    // Initial preview
+    updatePreview();
+});
+
+function updatePreview() {
+    const formData = new FormData(document.getElementById('exportForm'));
+    formData.append('preview', 'true');
+    
+    fetch('/export_advanced', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('record_count').textContent = data.count;
+        document.getElementById('preview_table').innerHTML = data.preview;
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+}
+
+document.getElementById('exportForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const params = new URLSearchParams();
+    
+    for (let [key, value] of formData.entries()) {
+        params.append(key, value);
+    }
+    
+    window.location.href = '/export_advanced?' + params.toString();
+});
+</script>
+{% endblock %}

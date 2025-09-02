@@ -1,0 +1,92 @@
+
+{% extends "base.html" %}
+
+{% block title %}تعديل بيانات مواطن{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-user-edit"></i> تعديل بيانات المواطن</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="full_name" class="form-label">الاسم الثلاثي *</label>
+                            <input type="text" class="form-control" id="full_name" name="full_name" 
+                                   value="{{ citizen[1] }}" required>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="national_id" class="form-label">الرقم الوطني (11 رقم) *</label>
+                            <input type="text" class="form-control" id="national_id" name="national_id" 
+                                   pattern="[0-9]{11}" maxlength="11" value="{{ citizen[2] }}" required>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="phone" class="form-label">رقم الجوال (يبدأ ب 09) *</label>
+                            <input type="text" class="form-control" id="phone" name="phone" 
+                                   pattern="09[0-9]{8}" maxlength="10" value="{{ citizen[3] }}" required>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="status" class="form-label">الحالة *</label>
+                            <select class="form-control" id="status" name="status" required>
+                                <option value="">اختر الحالة</option>
+                                <option value="ارملة" {{ 'selected' if citizen[4] == 'ارملة' }}>أرملة</option>
+                                <option value="مطلقة" {{ 'selected' if citizen[4] == 'مطلقة' }}>مطلقة</option>
+                                <option value="اعاقة" {{ 'selected' if citizen[4] == 'اعاقة' }}>إعاقة</option>
+                                <option value="كبير بالعمر" {{ 'selected' if citizen[4] == 'كبير بالعمر' }}>كبير بالعمر</option>
+                                <option value="حالة صعبة" {{ 'selected' if citizen[4] == 'حالة صعبة' }}>حالة صعبة</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="family_members" class="form-label">عدد أفراد الأسرة *</label>
+                        <input type="number" class="form-control" id="family_members" name="family_members" 
+                               min="1" max="50" value="{{ citizen[5] }}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="address" class="form-label">العنوان بالتفصيل *</label>
+                        <textarea class="form-control" id="address" name="address" rows="3" required>{{ citizen[6] }}</textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">ملاحظات</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="2">{{ citizen[7] or '' }}</textarea>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-save"></i> حفظ التعديلات
+                        </button>
+                        <a href="{{ url_for('view_citizens') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> العودة
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- معلومات المستخدم الذي أضاف البيانات -->
+<div class="row justify-content-center mt-3">
+    <div class="col-md-8">
+        <div class="card bg-light">
+            <div class="card-body py-2">
+                <small class="text-muted">
+                    <i class="fas fa-user"></i> أضيف بواسطة: {{ citizen[8] }} 
+                    <i class="fas fa-calendar"></i> في: {{ citizen[9][:19] }}
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

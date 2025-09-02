@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}تعديل الحقل{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-edit"></i> تعديل الحقل: {{ field[2] }}</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" id="fieldForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="field_name" class="form-label">اسم الحقل (بالإنجليزية)</label>
+                                <input type="text" class="form-control" id="field_name" name="field_name" 
+                                       value="{{ field[1] }}" required>
+                                <div class="form-text">سيتم تحويل الاسم إلى أحرف صغيرة وإزالة المسافات</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="field_label" class="form-label">تسمية الحقل (للعرض)</label>
+                                <input type="text" class="form-control" id="field_label" name="field_label" 
+                                       value="{{ field[2] }}" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="field_type" class="form-label">نوع الحقل</label>
+                                <select class="form-control" id="field_type" name="field_type" required onchange="toggleOptions()">
+                                    <option value="text" {{ 'selected' if field[3] == 'text' }}>نص عادي</option>
+                                    <option value="textarea" {{ 'selected' if field[3] == 'textarea' }}>نص طويل</option>
+                                    <option value="email" {{ 'selected' if field[3] == 'email' }}>بريد إلكتروني</option>
+                                    <option value="number" {{ 'selected' if field[3] == 'number' }}>رقم</option>
+                                    <option value="date" {{ 'selected' if field[3] == 'date' }}>تاريخ</option>
+                                    <option value="datetime-local" {{ 'selected' if field[3] == 'datetime-local' }}>تاريخ ووقت</option>
+                                    <option value="select" {{ 'selected' if field[3] == 'select' }}>قائمة منسدلة</option>
+                                    <option value="radio" {{ 'selected' if field[3] == 'radio' }}>اختيار واحد</option>
+                                    <option value="checkbox" {{ 'selected' if field[3] == 'checkbox' }}>اختيار متعدد</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="field_order" class="form-label">ترتيب الحقل</label>
+                                <input type="number" class="form-control" id="field_order" name="field_order" 
+                                       value="{{ field[7] }}" min="0">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3" id="optionsDiv" style="display:{% if field[3] in ['select', 'radio', 'checkbox'] %}block{% else %}none{% endif %};">
+                        <label for="field_options" class="form-label">خيارات الحقل</label>
+                        <textarea class="form-control" id="field_options" name="field_options" rows="3" 
+                                  placeholder="اكتب كل خيار في سطر منفصل">{{ field[4] or '' }}</textarea>
+                        <div class="form-text">اكتب كل خيار في سطر منفصل</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="validation_rules" class="form-label">قواعد التحقق</label>
+                        <input type="text" class="form-control" id="validation_rules" name="validation_rules" 
+                               value="{{ field[6] or '' }}" placeholder="مثال: min:5|max:100|regex:^[0-9]+$">
+                        <div class="form-text">قواعد اختيارية للتحقق من صحة البيانات</div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="is_required" name="is_required" 
+                                           {{ 'checked' if field[5] }}>
+                                    <label class="form-check-label" for="is_required">حقل مطلوب</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="is_active" name="is_active" 
+                                           {{ 'checked' if field[8] }}>
+                                    <label class="form-check-label" for="is_active">حقل نشط</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('manage_fields') }}" class="btn btn-secondary me-md-2">إلغاء</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> حفظ التغييرات
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleOptions() {
+    const fieldType = document.getElementById('field_type').value;
+    const optionsDiv = document.getElementById('optionsDiv');
+    const optionsField = document.getElementById('field_options');
+    
+    if (['select', 'radio', 'checkbox'].includes(fieldType)) {
+        optionsDiv.style.display = 'block';
+        optionsField.required = true;
+    } else {
+        optionsDiv.style.display = 'none';
+        optionsField.required = false;
+    }
+}
+</script>
+{% endblock %}

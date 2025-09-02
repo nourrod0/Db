@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}استعادة النسخة الاحتياطية{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-upload"></i> استعادة النسخة الاحتياطية</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>تحذير:</strong> سيتم إنشاء نسخة احتياطية من البيانات الحالية قبل الاستعادة
+                </div>
+                
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="backup_file" class="form-label">اختر ملف النسخة الاحتياطية</label>
+                        <input type="file" class="form-control" id="backup_file" name="backup_file" 
+                               accept=".db,.zip" required>
+                        <div class="form-text">يدعم ملفات .db و .zip فقط</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="confirm_restore" required>
+                            <label class="form-check-label" for="confirm_restore">
+                                أؤكد أنني أريد استعادة هذه النسخة الاحتياطية
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('admin') }}" class="btn btn-secondary me-md-2">إلغاء</a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-upload"></i> استعادة النسخة الاحتياطية
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

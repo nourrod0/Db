@@ -1,0 +1,169 @@
+
+{% extends "base.html" %}
+
+{% block title %}عرض البيانات{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4><i class="fas fa-list"></i> بيانات المواطنين</h4>
+                <div>
+                    <a href="{{ url_for('export_excel') }}" class="btn btn-success btn-sm me-2">
+                        <i class="fas fa-file-excel"></i> تصدير سريع
+                    </a>
+                    <a href="{{ url_for('export') }}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-download"></i> تصدير متقدم
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Filters -->
+                <form method="GET" class="row mb-4">
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" name="search" 
+                               placeholder="البحث (الاسم، الرقم الوطني، الجوال)" value="{{ search }}">
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-control" name="status">
+                            <option value="">جميع الحالات</option>
+                            <option value="ارملة" {{ 'selected' if status_filter == 'ارملة' }}>أرملة</option>
+                            <option value="مطلقة" {{ 'selected' if status_filter == 'مطلقة' }}>مطلقة</option>
+                            <option value="اعاقة" {{ 'selected' if status_filter == 'اعاقة' }}>إعاقة</option>
+                            <option value="كبير بالعمر" {{ 'selected' if status_filter == 'كبير بالعمر' }}>كبير بالعمر</option>
+                            <option value="حالة صعبة" {{ 'selected' if status_filter == 'حالة صعبة' }}>حالة صعبة</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search"></i> بحث
+                        </button>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{{ url_for('view_citizens') }}" class="btn btn-secondary">
+                            <i class="fas fa-redo"></i> إعادة تعيين
+                        </a>
+                    </div>
+                </form>
+
+                <!-- Table -->
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>الرقم</th>
+                                <th>الاسم الثلاثي</th>
+                                <th>الرقم الوطني</th>
+                                <th>الجوال</th>
+                                <th>الحالة</th>
+                                <th>أفراد الأسرة</th>
+                                <th>أضيف بواسطة</th>
+                                <th>تاريخ الإضافة</th>
+                                <th>إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for citizen in citizens %}
+                            <tr>
+                                <td>{{ citizen[0] }}</td>
+                                <td>{{ citizen[1] }}</td>
+                                <td>{{ citizen[2] }}</td>
+                                <td>{{ citizen[3] }}</td>
+                                <td>
+                                    <span class="status-badge status-{{ citizen[4].replace(' ', '-') }}">
+                                        {{ citizen[4] }}
+                                    </span>
+                                </td>
+                                <td>{{ citizen[5] }}</td>
+                                <td>{{ citizen[8] }}</td>
+                                <td>{{ citizen[9][:10] }}</td>
+                                <td>
+                                    <button class="btn btn-info btn-sm" onclick="viewDetails({{ citizen[0] }})">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <a href="{{ url_for('edit_citizen', citizen_id=citizen[0]) }}" class="btn btn-warning btn-sm">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% if session.is_admin %}
+                                    <button class="btn btn-danger btn-sm" onclick="deleteRecord({{ citizen[0] }})">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                {% if total_pages > 1 %}
+                <nav>
+                    <ul class="pagination justify-content-center">
+                        {% for page_num in range(1, total_pages + 1) %}
+                        <li class="page-item {{ 'active' if page_num == page }}">
+                            <a class="page-link" href="?page={{ page_num }}&search={{ search }}&status={{ status_filter }}">{{ page_num }}</a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Details Modal -->
+<div class="modal fade" id="detailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">تفاصيل المواطن</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modalContent">
+                <!-- Content will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function viewDetails(citizenId) {
+    fetch(`/citizen_details/${citizenId}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('modalContent').innerHTML = `
+                <div class="row">
+                    <div class="col-md-6"><strong>الاسم:</strong> ${data.full_name}</div>
+                    <div class="col-md-6"><strong>الرقم الوطني:</strong> ${data.national_id}</div>
+                    <div class="col-md-6"><strong>الجوال:</strong> ${data.phone}</div>
+                    <div class="col-md-6"><strong>الحالة:</strong> ${data.status}</div>
+                    <div class="col-md-6"><strong>أفراد الأسرة:</strong> ${data.family_members}</div>
+                    <div class="col-md-6"><strong>أضيف بواسطة:</strong> ${data.added_by}</div>
+                    <div class="col-12 mt-3"><strong>العنوان:</strong><br>${data.address}</div>
+                    <div class="col-12 mt-3"><strong>ملاحظات:</strong><br>${data.notes || 'لا توجد ملاحظات'}</div>
+                </div>
+            `;
+            new bootstrap.Modal(document.getElementById('detailsModal')).show();
+        });
+}
+
+function deleteRecord(citizenId) {
+    if (confirm('هل أنت متأكد من حذف هذا السجل؟')) {
+        fetch(`/delete_citizen/${citizenId}`, {method: 'DELETE'})
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('خطأ في حذف السجل');
+                }
+            });
+    }
+}
+</script>
+{% endblock %}

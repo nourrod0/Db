@@ -1,0 +1,207 @@
+
+{% extends "base.html" %}
+
+{% block title %}لوحة الإدارة{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4">لوحة الإدارة</h2>
+    </div>
+</div>
+
+<!-- Backup and Export Tools -->
+<div class="row mb-4">
+    <div class="col-md-2 mb-3">
+        <div class="card text-center border-primary">
+            <div class="card-body">
+                <i class="fas fa-database fa-2x text-primary"></i>
+                <h6 class="mt-2">نسخ احتياطي قاعدة البيانات</h6>
+                <a href="/backup" class="btn btn-primary btn-sm">إنشاء نسخة</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-2 mb-3">
+        <div class="card text-center border-info">
+            <div class="card-body">
+                <i class="fas fa-archive fa-2x text-info"></i>
+                <h6 class="mt-2">نسخ احتياطي شامل</h6>
+                <a href="/backup_full" class="btn btn-info btn-sm">نسخة كاملة</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-2 mb-3">
+        <div class="card text-center border-warning">
+            <div class="card-body">
+                <i class="fas fa-upload fa-2x text-warning"></i>
+                <h6 class="mt-2">استعادة النسخة الاحتياطية</h6>
+                <a href="/restore_backup" class="btn btn-warning btn-sm">استعادة</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-2 mb-3">
+        <div class="card text-center border-success">
+            <div class="card-body">
+                <i class="fas fa-file-excel fa-2x text-success"></i>
+                <h6 class="mt-2">تصدير إكسل</h6>
+                <a href="{{ url_for('export') }}" class="btn btn-success btn-sm">تصدير</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-2 mb-3">
+        <div class="card text-center border-danger">
+            <div class="card-body">
+                <i class="fas fa-file-pdf fa-2x text-danger"></i>
+                <h6 class="mt-2">تصدير PDF</h6>
+                <a href="{{ url_for('export') }}" class="btn btn-danger btn-sm">تصدير</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-2 mb-3">
+        <div class="card text-center border-secondary">
+            <div class="card-body">
+                <i class="fas fa-print fa-2x text-secondary"></i>
+                <h6 class="mt-2">طباعة</h6>
+                <button onclick="window.print()" class="btn btn-secondary btn-sm">طباعة</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Site Settings -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-cog"></i> إعدادات الموقع</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/update_settings">
+                    <div class="mb-3">
+                        <label for="site_name" class="form-label">اسم الموقع</label>
+                        <input type="text" class="form-control" id="site_name" name="site_name" 
+                               value="{{ settings[1] if settings else 'نظام إدارة البيانات' }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="site_status" class="form-label">حالة الموقع</label>
+                        <select class="form-control" id="site_status" name="site_status">
+                            <option value="active" {{ 'selected' if settings and settings[2] == 'active' }}>نشط</option>
+                            <option value="maintenance" {{ 'selected' if settings and settings[2] == 'maintenance' }}>صيانة</option>
+                        </select>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> حفظ الإعدادات
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-user-plus"></i> إضافة مستخدم جديد</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/add_user">
+                    <div class="mb-3">
+                        <label for="new_username" class="form-label">اسم المستخدم</label>
+                        <input type="text" class="form-control" id="new_username" name="username" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="new_password" class="form-label">كلمة المرور</label>
+                        <input type="password" class="form-control" id="new_password" name="password" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="is_admin" name="is_admin">
+                            <label class="form-check-label" for="is_admin">مدير</label>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-user-plus"></i> إضافة مستخدم
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Users Management -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-users"></i> إدارة المستخدمين</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>الرقم</th>
+                                <th>اسم المستخدم</th>
+                                <th>نوع الحساب</th>
+                                <th>تاريخ الإنشاء</th>
+                                <th>إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr>
+                                <td>{{ user[0] }}</td>
+                                <td>{{ user[1] }}</td>
+                                <td>
+                                    <span class="badge {{ 'bg-danger' if user[2] else 'bg-primary' }}">
+                                        {{ 'مدير' if user[2] else 'مستخدم' }}
+                                    </span>
+                                </td>
+                                <td>{{ user[3][:10] }}</td>
+                                <td>
+                                    <a href="{{ url_for('edit_user', user_id=user[0]) }}" class="btn btn-warning btn-sm">
+                                        <i class="fas fa-edit"></i> تعديل
+                                    </a>
+                                    {% if user[1] != 'admin' %}
+                                    <button class="btn btn-danger btn-sm" onclick="deleteUser({{ user[0] }})">
+                                        <i class="fas fa-trash"></i> حذف
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function deleteUser(userId) {
+    if (confirm('هل أنت متأكد من حذف هذا المستخدم؟')) {
+        fetch(`/delete_user/${userId}`, {method: 'DELETE'})
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('خطأ في حذف المستخدم');
+                }
+            });
+    }
+}
+</script>
+{% endblock %}

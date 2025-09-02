@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}إدارة الحقول الديناميكية{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>إدارة الحقول الديناميكية</h2>
+            <a href="{{ url_for('add_field') }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> إضافة حقل جديد
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-list"></i> الحقول المُعرفة</h5>
+            </div>
+            <div class="card-body">
+                {% if fields %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>الترتيب</th>
+                                <th>اسم الحقل</th>
+                                <th>التسمية</th>
+                                <th>النوع</th>
+                                <th>مطلوب</th>
+                                <th>نشط</th>
+                                <th>إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for field in fields %}
+                            <tr>
+                                <td>{{ field[7] }}</td>
+                                <td><code>{{ field[1] }}</code></td>
+                                <td>{{ field[2] }}</td>
+                                <td>
+                                    <span class="badge bg-info">{{ field[3] }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge {{ 'bg-danger' if field[5] else 'bg-secondary' }}">
+                                        {{ 'مطلوب' if field[5] else 'اختياري' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge {{ 'bg-success' if field[8] else 'bg-warning' }}">
+                                        {{ 'نشط' if field[8] else 'معطل' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('edit_field', field_id=field[0]) }}" class="btn btn-warning btn-sm">
+                                        <i class="fas fa-edit"></i> تعديل
+                                    </a>
+                                    <button class="btn btn-danger btn-sm" onclick="deleteField({{ field[0] }})">
+                                        <i class="fas fa-trash"></i> حذف
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">لا توجد حقول مُعرفة حتى الآن</p>
+                    <a href="{{ url_for('add_field') }}" class="btn btn-primary">إضافة أول حقل</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> أنواع الحقول المتاحة</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6>النصوص</h6>
+                        <ul class="list-unstyled">
+                            <li><span class="badge bg-info">text</span> نص عادي</li>
+                            <li><span class="badge bg-info">textarea</span> نص طويل</li>
+                            <li><span class="badge bg-info">email</span> بريد إلكتروني</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>الأرقام والتواريخ</h6>
+                        <ul class="list-unstyled">
+                            <li><span class="badge bg-success">number</span> رقم</li>
+                            <li><span class="badge bg-success">date</span> تاريخ</li>
+                            <li><span class="badge bg-success">datetime-local</span> تاريخ ووقت</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>الخيارات</h6>
+                        <ul class="list-unstyled">
+                            <li><span class="badge bg-warning">select</span> قائمة منسدلة</li>
+                            <li><span class="badge bg-warning">radio</span> اختيار واحد</li>
+                            <li><span class="badge bg-warning">checkbox</span> اختيار متعدد</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function deleteField(fieldId) {
+    if (confirm('هل أنت متأكد من حذف هذا الحقل؟ سيتم حذف جميع البيانات المرتبطة به.')) {
+        fetch(`/delete_field/${fieldId}`, {method: 'DELETE'})
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('خطأ في حذف الحقل');
+                }
+            });
+    }
+}
+</script>
+{% endblock %}

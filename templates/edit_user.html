@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}تعديل المستخدم{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-user-edit"></i> تعديل بيانات المستخدم</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">اسم المستخدم</label>
+                        <input type="text" class="form-control" id="username" name="username" 
+                               value="{{ user[1] }}" required minlength="3">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">كلمة المرور الجديدة</label>
+                        <input type="password" class="form-control" id="password" name="password">
+                        <div class="form-text">اتركها فارغة إذا كنت لا تريد تغيير كلمة المرور</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="is_admin" name="is_admin" 
+                                   {{ 'checked' if user[2] }}>
+                            <label class="form-check-label" for="is_admin">مدير</label>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('admin') }}" class="btn btn-secondary me-md-2">إلغاء</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> حفظ التغييرات
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
