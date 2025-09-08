@@ -84,6 +84,28 @@ def init_db():
         FOREIGN KEY (field_id) REFERENCES dynamic_fields(id) ON DELETE CASCADE
     )''')
     
+    # Permissions table للصلاحيات المتقدمة
+    c.execute('''CREATE TABLE IF NOT EXISTS permissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        description TEXT NOT NULL,
+        category TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
+    
+    # User permissions table لربط المستخدمين بالصلاحيات
+    c.execute('''CREATE TABLE IF NOT EXISTS user_permissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        permission_id INTEGER NOT NULL,
+        granted_by INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE,
+        FOREIGN KEY (granted_by) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(user_id, permission_id)
+    )''')
+    
     # Create default admin user
     c.execute("SELECT * FROM users WHERE username = 'admin'")
     if not c.fetchone():
@@ -97,6 +119,30 @@ def init_db():
         c.execute("INSERT INTO settings (site_name, site_status) VALUES (?, ?)", 
                  ('نظام إدارة البيانات', 'active'))
     
+    # Create default permissions
+    default_permissions = [
+        ('view_citizens', 'عرض بيانات المواطنين', 'البيانات'),
+        ('add_citizens', 'إضافة بيانات المواطنين', 'البيانات'),
+        ('edit_citizens', 'تعديل بيانات المواطنين', 'البيانات'),
+        ('delete_citizens', 'حذف بيانات المواطنين', 'البيانات'),
+        ('export_data', 'تصدير البيانات', 'التقارير'),
+        ('export_advanced', 'التصدير المتقدم', 'التقارير'),
+        ('backup_database', 'إنشاء نسخ احتياطية', 'النسخ الاحتياطية'),
+        ('restore_database', 'استعادة النسخ الاحتياطية', 'النسخ الاحتياطية'),
+        ('manage_users', 'إدارة المستخدمين', 'الإدارة'),
+        ('manage_settings', 'إدارة الإعدادات', 'الإدارة'),
+        ('view_reports', 'عرض التقارير', 'التقارير'),
+        ('manage_permissions', 'إدارة الصلاحيات', 'الإدارة'),
+        ('view_all_data', 'عرض جميع البيانات', 'البيانات'),
+        ('manage_dynamic_fields', 'إدارة الحقول الديناميكية', 'الإدارة')
+    ]
+    
+    for perm_name, perm_desc, perm_category in default_permissions:
+        c.execute("SELECT * FROM permissions WHERE name = ?", (perm_name,))
+        if not c.fetchone():
+            c.execute("INSERT INTO permissions (name, description, category) VALUES (?, ?, ?)",
+                     (perm_name, perm_desc, perm_category))
+    
     conn.commit()
     conn.close()
 
@@ -108,6 +154,130 @@ def is_site_active():
     result = c.fetchone()
     conn.close()
     return result[0] == 'active' if result else True
+
+# Permission checking functions
+def has_permission(user_id, permission_name):
+    """التحقق من صلاحية المستخدم"""
+    conn = sqlite3.connect('database.db')
+    c = conn.cursor()
+    
+    # التحقق من المدير الرئيسي
+    c.execute("SELECT is_admin FROM users WHERE id = ?", (user_id,))
+    user = c.fetchone()
+    if user and user[0] == 1:  # مدير رئيسي له جميع الصلاحيات
+        conn.close()
+        return True
+    
+    # التحقق من الصلاحية المحددة
+    c.execute("""
+        SELECT 1 FROM user_permissions up 
+        JOIN permissions p ON up.permission_id = p.id 
+        WHERE up.user_id = ? AND p.name = ?
+    """, (user_id, permission_name))
+    result = c.fetchone()
+    conn.close()
+    return result is not None
+
+def get_user_permissions(user_id):
+    """الحصول على جميع صلاحيات المستخدم"""
+    conn = sqlite3.connect('database.db')
+    c = conn.cursor()
+    
+    # التحقق من المدير الرئيسي
+    c.execute("SELECT is_admin FROM users WHERE id = ?", (user_id,))
+    user = c.fetchone()
+    if user and user[0] == 1:
+        c.execute("SELECT name, description, category FROM permissions ORDER BY category, name")
+        permissions = c.fetchall()
+        conn.close()
+        return permissions
+    
+    # الحصول على صلاحيات المستخدم المحددة
+    c.execute("""
+        SELECT p.name, p.description, p.category 
+        FROM user_permissions up 
+        JOIN permissions p ON up.permission_id = p.id 
+        WHERE up.user_id = ?
+        ORDER BY p.category, p.name
+    """, (user_id,))
+    permissions = c.fetchall()
+    conn.close()
+    return permissions
+
+def get_all_permissions():
+    """الحصول على جميع الصلاحيات المتاحة"""
+    conn = sqlite3.connect('database.db')
+    c = conn.cursor()
+    c.execute("SELECT id, name, description, category FROM permissions ORDER BY category, name")
+    permissions = c.fetchall()
+    conn.close()
+    return permissions
+
+def assign_default_permissions(user_id, granted_by_user_id=1):
+    """تطبيق الصلاحيات الافتراضية للمستخدمين الجدد العاديين"""
+    # قائمة الصلاحيات الافتراضية للمستخدمين العاديين
+    default_permission_names = [
+        'view_citizens',      # عرض بيانات المواطنين
+        'add_citizens',       # إضافة بيانات المواطنين  
+        'edit_citizens',      # تعديل بيانات المواطنين
+        'export_data',        # تصدير البيانات الأساسي
+        'view_reports'        # عرض التقارير
+    ]
+    
+    conn = sqlite3.connect('database.db')
+    c = conn.cursor()
+    
+    try:
+        # الحصول على معرفات الصلاحيات الافتراضية
+        permission_ids = []
+        for perm_name in default_permission_names:
+            c.execute("SELECT id FROM permissions WHERE name = ?", (perm_name,))
+            result = c.fetchone()
+            if result:
+                permission_ids.append(result[0])
+        
+        # تطبيق الصلاحيات الافتراضية
+        for perm_id in permission_ids:
+            try:
+                c.execute("""
+                    INSERT INTO user_permissions (user_id, permission_id, granted_by)
+                    VALUES (?, ?, ?)
+                """, (user_id, perm_id, granted_by_user_id))
+            except sqlite3.IntegrityError:
+                # تجاهل إذا كانت الصلاحية موجودة بالفعل
+                pass
+        
+        conn.commit()
+        return True
+    
+    except Exception as e:
+        conn.rollback()
+        print(f"خطأ في تطبيق الصلاحيات الافتراضية: {e}")
+        return False
+    
+    finally:
+        conn.close()
+
+# إضافة دالة فحص الصلاحيات لقوالب Jinja2
+@app.context_processor
+def inject_permission_functions():
+    """إدراج دوال مساعدة لفحص الصلاحيات في قوالب Jinja2"""
+    def check_permission(permission_name):
+        """فحص صلاحية المستخدم الحالي"""
+        if 'user_id' not in session:
+            return False
+        return has_permission(session['user_id'], permission_name)
+    
+    def get_current_user_permissions():
+        """الحصول على صلاحيات المستخدم الحالي"""
+        if 'user_id' not in session:
+            return []
+        return get_user_permissions(session['user_id'])
+    
+    return dict(
+        has_permission=check_permission,
+        current_user_permissions=get_current_user_permissions
+    )
 
 # Routes
 @app.route('/', methods=['GET', 'POST'])
@@ -200,18 +370,29 @@ def add_citizen():
         address = request.form['address']
         notes = request.form.get('notes', '')
         
+        # إنشاء كائن البيانات للاحتفاظ بها في حالة الخطأ
+        form_data = {
+            'full_name': full_name,
+            'national_id': national_id,
+            'phone': phone,
+            'status': status,
+            'family_members': family_members,
+            'address': address,
+            'notes': notes
+        }
+        
         # Validation
         if len(national_id) != 11 or not national_id.isdigit():
             flash('الرقم الوطني يجب أن يكون 11 رقم', 'error')
-            return render_template('add_citizen.html')
+            return render_template('add_citizen.html', form_data=form_data)
         
         if len(phone) != 10 or not phone.startswith('09') or not phone.isdigit():
             flash('رقم الجوال يجب أن يكون 10 أرقام ويبدأ ب 09', 'error')
-            return render_template('add_citizen.html')
+            return render_template('add_citizen.html', form_data=form_data)
         
         if family_members > 50:
             flash('عدد أفراد الأسرة لا يمكن أن يتجاوز 50', 'error')
-            return render_template('add_citizen.html')
+            return render_template('add_citizen.html', form_data=form_data)
         
         conn = sqlite3.connect('database.db')
         c = conn.cursor()
@@ -221,7 +402,17 @@ def add_citizen():
         if c.fetchone():
             flash('الرقم الوطني مسجل مسبقاً', 'error')
             conn.close()
-            return render_template('add_citizen.html')
+            # إعادة عرض الصفحة مع البيانات المدخلة مسبقاً
+            form_data = {
+                'full_name': full_name,
+                'national_id': national_id,
+                'phone': phone,
+                'status': status,
+                'family_members': family_members,
+                'address': address,
+                'notes': notes
+            }
+            return render_template('add_citizen.html', form_data=form_data)
         
         try:
             c.execute('''INSERT INTO citizens 
@@ -380,7 +571,17 @@ def edit_citizen(citizen_id):
 def export():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    return render_template('export.html')
+    
+    # Get all users if admin
+    users = []
+    if session.get('is_admin'):
+        conn = sqlite3.connect('database.db')
+        c = conn.cursor()
+        c.execute("SELECT username FROM users ORDER BY username")
+        users = [row[0] for row in c.fetchall()]
+        conn.close()
+    
+    return render_template('export.html', users=users)
 
 @app.route('/export_advanced', methods=['GET', 'POST'])
 def export_advanced():
@@ -398,6 +599,8 @@ def export_advanced():
     all_status = request.values.get('all_status')
     all_fields = request.values.get('all_fields')
     preview = request.values.get('preview')
+    user_filters = request.values.getlist('users')
+    all_users = request.values.get('all_users')
     
     # Build query
     query = "SELECT * FROM citizens WHERE 1=1"
@@ -407,6 +610,12 @@ def export_advanced():
     if not session.get('is_admin'):
         query += " AND added_by = ?"
         params.append(session['username'])
+    else:
+        # للمدير: تطبيق فلتر المستخدمين
+        if not all_users and user_filters:
+            placeholders = ','.join(['?' for _ in user_filters])
+            query += f" AND added_by IN ({placeholders})"
+            params.extend(user_filters)
     
     # Apply filters
     if not all_status and status_filters:
@@ -897,12 +1106,72 @@ def add_user():
         hashed_password = generate_password_hash(password)
         c.execute("INSERT INTO users (username, password, is_admin) VALUES (?, ?, ?)",
                  (username, hashed_password, is_admin))
+        
+        # الحصول على معرف المستخدم الجديد
+        new_user_id = c.lastrowid
+        
         conn.commit()
-        flash('تم إضافة المستخدم بنجاح', 'success')
+        conn.close()
+        
+        # تطبيق الصلاحيات الافتراضية للمستخدمين العاديين فقط
+        if is_admin == 0:
+            success = assign_default_permissions(new_user_id, session['user_id'])
+            if success:
+                flash('تم إضافة المستخدم بنجاح مع الصلاحيات الافتراضية', 'success')
+            else:
+                flash('تم إضافة المستخدم بنجاح لكن حدث خطأ في تطبيق بعض الصلاحيات الافتراضية', 'warning')
+        else:
+            flash('تم إضافة المستخدم المدير بنجاح', 'success')
+            
     except sqlite3.IntegrityError:
         flash('اسم المستخدم موجود مسبقاً', 'error')
+        conn.close()
+    except Exception as e:
+        flash(f'خطأ في إضافة المستخدم: {str(e)}', 'error')
+        conn.close()
     
-    conn.close()
+    return redirect(url_for('admin'))
+
+@app.route('/apply_default_permissions_all', methods=['POST'])
+def apply_default_permissions_all():
+    """تطبيق الصلاحيات الافتراضية على جميع المستخدمين العاديين الذين لا يملكون صلاحيات"""
+    if 'user_id' not in session or not session.get('is_admin'):
+        return redirect(url_for('login'))
+    
+    conn = sqlite3.connect('database.db')
+    c = conn.cursor()
+    
+    try:
+        # العثور على المستخدمين العاديين الذين لا يملكون صلاحيات
+        c.execute("""
+            SELECT u.id, u.username 
+            FROM users u
+            WHERE u.is_admin = 0 
+            AND u.id NOT IN (
+                SELECT DISTINCT user_id 
+                FROM user_permissions
+            )
+        """)
+        
+        users_without_permissions = c.fetchall()
+        success_count = 0
+        
+        conn.close()
+        
+        # تطبيق الصلاحيات الافتراضية لكل مستخدم
+        for user_id, username in users_without_permissions:
+            if assign_default_permissions(user_id, session['user_id']):
+                success_count += 1
+        
+        if success_count > 0:
+            flash(f'تم تطبيق الصلاحيات الافتراضية على {success_count} مستخدم بنجاح', 'success')
+        else:
+            flash('جميع المستخدمين العاديين لديهم صلاحيات بالفعل أو حدث خطأ', 'info')
+            
+    except Exception as e:
+        flash(f'خطأ في تطبيق الصلاحيات: {str(e)}', 'error')
+        conn.close()
+    
     return redirect(url_for('admin'))
 
 @app.route('/delete_user/<int:user_id>', methods=['DELETE'])
@@ -1022,8 +1291,26 @@ def restore_backup():
                     flash('تم استعادة قاعدة البيانات بنجاح', 'success')
                 
                 elif file.filename.endswith('.zip'):
-                    # Create backup of current state
-                    shutil.copy2('database.db', f'database_backup_before_restore_{timestamp}.db')
+                    # Create comprehensive backup of current state
+                    current_backup_filename = f'complete_backup_before_restore_{timestamp}.zip'
+                    with zipfile.ZipFile(current_backup_filename, 'w', zipfile.ZIP_DEFLATED) as backup_zip:
+                        # Backup current database
+                        if os.path.exists('database.db'):
+                            backup_zip.write('database.db', 'database.db')
+                        # Backup current app.py
+                        backup_zip.write('app.py', 'app.py')
+                        # Backup templates
+                        if os.path.exists('templates'):
+                            for template_file in os.listdir('templates'):
+                                if template_file.endswith('.html'):
+                                    backup_zip.write(f'templates/{template_file}', f'templates/{template_file}')
+                        # Backup static files
+                        if os.path.exists('static'):
+                            for root, dirs, files in os.walk('static'):
+                                for file_name in files:
+                                    file_path = os.path.join(root, file_name)
+                                    arcname = os.path.relpath(file_path, '.')
+                                    backup_zip.write(file_path, arcname)
                     
                     # Extract and restore from zip
                     temp_path = f'temp_restore_{timestamp}'
@@ -1031,16 +1318,54 @@ def restore_backup():
                     
                     file.save(f'{temp_path}/restore.zip')
                     
+                    restored_files = []
                     with zipfile.ZipFile(f'{temp_path}/restore.zip', 'r') as zip_file:
                         zip_file.extractall(temp_path)
                         
                         # Restore database if present
                         if os.path.exists(f'{temp_path}/database.db'):
                             shutil.copy2(f'{temp_path}/database.db', 'database.db')
+                            restored_files.append('قاعدة البيانات')
+                        
+                        # Restore app.py if present (with caution - this could break the running app)
+                        # We'll skip app.py restoration to avoid breaking the system
+                        # if os.path.exists(f'{temp_path}/app.py'):
+                        #     shutil.copy2(f'{temp_path}/app.py', 'app.py')
+                        #     restored_files.append('ملف التطبيق الرئيسي')
+                        
+                        # Restore templates if present
+                        templates_path = f'{temp_path}/templates'
+                        if os.path.exists(templates_path):
+                            if not os.path.exists('templates'):
+                                os.makedirs('templates')
+                            for template_file in os.listdir(templates_path):
+                                if template_file.endswith('.html'):
+                                    shutil.copy2(f'{templates_path}/{template_file}', f'templates/{template_file}')
+                            restored_files.append('قوالب HTML')
+                        
+                        # Restore static files if present
+                        static_path = f'{temp_path}/static'
+                        if os.path.exists(static_path):
+                            if not os.path.exists('static'):
+                                os.makedirs('static')
+                            for root, dirs, files in os.walk(static_path):
+                                for file_name in files:
+                                    source_file = os.path.join(root, file_name)
+                                    relative_path = os.path.relpath(source_file, static_path)
+                                    target_file = os.path.join('static', relative_path)
+                                    target_dir = os.path.dirname(target_file)
+                                    if not os.path.exists(target_dir):
+                                        os.makedirs(target_dir)
+                                    shutil.copy2(source_file, target_file)
+                            restored_files.append('الملفات الثابتة')
                     
                     # Cleanup
                     shutil.rmtree(temp_path)
-                    flash('تم استعادة النسخة الاحتياطية الكاملة بنجاح', 'success')
+                    
+                    if restored_files:
+                        flash(f'تم استعادة النسخة الاحتياطية الكاملة بنجاح. تم استعادة: {", ".join(restored_files)}', 'success')
+                    else:
+                        flash('تم استخراج النسخة الاحتياطية ولكن لم يتم العثور على ملفات صالحة للاستعادة', 'warning')
                 
                 return redirect(url_for('admin'))
                 
@@ -1114,6 +1439,73 @@ def edit_user(user_id):
     
     conn.close()
     return render_template('edit_user.html', user=user)
+
+@app.route('/manage_permissions/<int:user_id>', methods=['GET', 'POST'])
+def manage_permissions(user_id):
+    if 'user_id' not in session or not has_permission(session['user_id'], 'manage_permissions'):
+        flash('ليس لديك صلاحية إدارة الصلاحيات', 'error')
+        return redirect(url_for('dashboard'))
+    
+    conn = sqlite3.connect('database.db')
+    c = conn.cursor()
+    
+    # Get user data
+    c.execute("SELECT id, username, is_admin FROM users WHERE id = ?", (user_id,))
+    user = c.fetchone()
+    
+    if not user:
+        flash('المستخدم غير موجود', 'error')
+        conn.close()
+        return redirect(url_for('admin'))
+    
+    if request.method == 'POST':
+        selected_permissions = request.form.getlist('permissions')
+        
+        try:
+            # حذف الصلاحيات الحالية للمستخدم
+            c.execute("DELETE FROM user_permissions WHERE user_id = ?", (user_id,))
+            
+            # إضافة الصلاحيات الجديدة
+            inserted_count = 0
+            for perm_id in selected_permissions:
+                try:
+                    # التأكد من أن perm_id صحيح
+                    perm_id_int = int(perm_id)
+                    c.execute("""
+                        INSERT INTO user_permissions (user_id, permission_id, granted_by)
+                        VALUES (?, ?, ?)
+                    """, (user_id, perm_id_int, session['user_id']))
+                    inserted_count += 1
+                except (ValueError, sqlite3.Error):
+                    continue
+            
+            conn.commit()
+            
+            if inserted_count > 0:
+                flash(f'تم تحديث صلاحيات المستخدم بنجاح. تم حفظ {inserted_count} صلاحية', 'success')
+            else:
+                flash('تم حذف جميع الصلاحيات من المستخدم', 'info')
+            
+            conn.close()
+            return redirect(url_for('admin'))
+            
+        except Exception as e:
+            flash(f'خطأ في تحديث الصلاحيات: {str(e)}', 'error')
+            conn.close()
+    
+    # الحصول على جميع الصلاحيات
+    all_permissions = get_all_permissions()
+    
+    # الحصول على صلاحيات المستخدم الحالية
+    user_permissions = get_user_permissions(user_id)
+    user_permissions_list = [perm[0] for perm in user_permissions]  # أسماء الصلاحيات
+    
+    conn.close()
+    return render_template('manage_permissions.html', 
+                         user=user, 
+                         all_permissions=all_permissions,
+                         user_permissions=user_permissions,
+                         user_permissions_list=user_permissions_list)
 
 @app.route('/manage_fields')
 def manage_fields():
