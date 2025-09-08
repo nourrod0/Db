@@ -79,6 +79,26 @@
                                         <label for="search_text" class="form-label">البحث النصي</label>
                                         <input type="text" class="form-control" id="search_text" name="search_text" placeholder="البحث في الاسم أو الرقم الوطني">
                                     </div>
+                                    
+                                    {% if users %}
+                                    <div class="mb-3">
+                                        <label class="form-label">المستخدمون المضافون للبيانات</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" value="all" id="all_users" checked>
+                                            <label class="form-check-label" for="all_users">
+                                                جميع المستخدمين
+                                            </label>
+                                        </div>
+                                        {% for user in users %}
+                                        <div class="form-check">
+                                            <input class="form-check-input user-filter" type="checkbox" value="{{ user }}" id="user_{{ loop.index }}" name="users">
+                                            <label class="form-check-label" for="user_{{ loop.index }}">
+                                                {{ user }}
+                                            </label>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -215,6 +235,36 @@ document.addEventListener('DOMContentLoaded', function() {
             updatePreview();
         });
     });
+    
+    // Handle "جميع المستخدمين" checkbox
+    const allUsersElement = document.getElementById('all_users');
+    if (allUsersElement) {
+        allUsersElement.addEventListener('change', function() {
+            const userFilters = document.querySelectorAll('.user-filter');
+            userFilters.forEach(filter => {
+                filter.checked = this.checked;
+                filter.disabled = this.checked;
+            });
+            updatePreview();
+        });
+        
+        // Handle individual user filters
+        document.querySelectorAll('.user-filter').forEach(filter => {
+            filter.addEventListener('change', function() {
+                const allUsers = document.getElementById('all_users');
+                const checkedFilters = document.querySelectorAll('.user-filter:checked');
+                
+                if (checkedFilters.length === 0) {
+                    allUsers.checked = true;
+                    document.querySelectorAll('.user-filter').forEach(f => f.disabled = true);
+                } else {
+                    allUsers.checked = false;
+                    document.querySelectorAll('.user-filter').forEach(f => f.disabled = false);
+                }
+                updatePreview();
+            });
+        });
+    }
     
     // Handle "جميع الحقول" checkbox
     document.getElementById('all_fields').addEventListener('change', function() {

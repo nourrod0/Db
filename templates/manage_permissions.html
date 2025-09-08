@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}إدارة الصلاحيات{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-key"></i> إدارة صلاحيات المستخدم: {{ user[1] }}</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" id="permissionsForm">
+                    <div class="row">
+                        <!-- معلومات المستخدم -->
+                        <div class="col-md-4">
+                            <div class="card border-info">
+                                <div class="card-header bg-info text-white">
+                                    <h5><i class="fas fa-user"></i> معلومات المستخدم</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>اسم المستخدم:</strong> {{ user[1] }}</p>
+                                    <p><strong>نوع الحساب:</strong> 
+                                        <span class="badge {{ 'bg-danger' if user[2] else 'bg-primary' }}">
+                                            {{ 'مدير رئيسي' if user[2] else 'مستخدم عادي' }}
+                                        </span>
+                                    </p>
+                                    
+                                    {% if not user[2] %}
+                                    <div class="alert alert-warning">
+                                        <i class="fas fa-info-circle"></i>
+                                        يمكنك تحديد الصلاحيات المحددة للمستخدم من الخيارات المجاورة
+                                    </div>
+                                    {% else %}
+                                    <div class="alert alert-success">
+                                        <i class="fas fa-crown"></i>
+                                        المدير الرئيسي يملك جميع الصلاحيات تلقائياً
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- الصلاحيات -->
+                        <div class="col-md-8">
+                            {% if not user[2] %}
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5><i class="fas fa-list-check"></i> الصلاحيات المتاحة</h5>
+                                </div>
+                                <div class="card-body">
+                                    {% set current_category = '' %}
+                                    {% for permission in all_permissions %}
+                                        {% if permission[3] != current_category %}
+                                            {% set current_category = permission[3] %}
+                                            {% if loop.index > 1 %}</div>{% endif %}
+                                            <div class="mb-4">
+                                                <h6 class="text-primary border-bottom pb-2">
+                                                    <i class="fas fa-folder"></i> {{ permission[3] }}
+                                                </h6>
+                                        {% endif %}
+                                        
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   value="{{ permission[0] }}" 
+                                                   id="perm_{{ permission[0] }}" 
+                                                   name="permissions"
+                                                   {% if permission[1] in user_permissions_list %}checked{% endif %}>
+                                            <label class="form-check-label" for="perm_{{ permission[0] }}">
+                                                <strong>{{ permission[2] }}</strong>
+                                            </label>
+                                        </div>
+                                        
+                                        {% if loop.last %}</div>{% endif %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-4">
+                        <div class="col-12 text-center">
+                            {% if not user[2] %}
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="fas fa-save"></i> حفظ الصلاحيات
+                            </button>
+                            {% endif %}
+                            <a href="{{ url_for('admin') }}" class="btn btn-secondary btn-lg ms-2">
+                                <i class="fas fa-arrow-left"></i> العودة
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- الصلاحيات الحالية للمستخدم -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-check-circle"></i> الصلاحيات الحالية للمستخدم</h5>
+            </div>
+            <div class="card-body">
+                {% if user[2] %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-crown"></i> المدير الرئيسي يملك جميع الصلاحيات تلقائياً
+                    </div>
+                {% elif user_permissions %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped">
+                            <thead>
+                                <tr>
+                                    <th>الفئة</th>
+                                    <th>الصلاحية</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for perm in user_permissions %}
+                                <tr>
+                                    <td><span class="badge bg-info">{{ perm[2] }}</span></td>
+                                    <td>{{ perm[1] }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i> لا توجد صلاحيات محددة لهذا المستخدم
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // إضافة تأكيد قبل الحفظ
+    document.getElementById('permissionsForm').addEventListener('submit', function(e) {
+        const checkedPermissions = document.querySelectorAll('input[name="permissions"]:checked');
+        
+        if (checkedPermissions.length === 0) {
+            if (!confirm('لم تحدد أي صلاحيات للمستخدم. هل أنت متأكد من المتابعة؟')) {
+                e.preventDefault();
+                return false;
+            }
+        }
+        
+        return true;
+    });
+});
+</script>
+{% endblock %}

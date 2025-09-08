@@ -56,18 +56,74 @@
                 <i class="fas fa-users"></i> نظام إدارة البيانات
             </a>
             <div class="navbar-nav me-auto">
-                <a class="nav-link" href="{{ url_for('dashboard') }}">الرئيسية</a>
-                <a class="nav-link" href="{{ url_for('add_citizen') }}">إضافة بيانات</a>
-                <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('view_citizens') }}">
-                                <i class="fas fa-list"></i> عرض البيانات
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('export') }}">
-                                <i class="fas fa-download"></i> تصدير متقدم
-                            </a>
-                        </li>
+                <a class="nav-link" href="{{ url_for('dashboard') }}">
+                    <i class="fas fa-tachometer-alt"></i> الرئيسية
+                </a>
+                
+                {% if has_permission('view_citizens') %}
+                <a class="nav-link" href="{{ url_for('view_citizens') }}">
+                    <i class="fas fa-list"></i> عرض البيانات
+                </a>
+                {% endif %}
+                
+                {% if has_permission('add_citizens') %}
+                <a class="nav-link" href="{{ url_for('add_citizen') }}">
+                    <i class="fas fa-plus"></i> إضافة بيانات
+                </a>
+                {% endif %}
+                
+                {% if has_permission('export_data') %}
+                <a class="nav-link" href="{{ url_for('export') }}">
+                    <i class="fas fa-download"></i> تصدير البيانات
+                </a>
+                {% endif %}
+                
+                {% if has_permission('backup_database') %}
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-database"></i> النسخ الاحتياطية
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ url_for('backup') }}">
+                            <i class="fas fa-download"></i> نسخة احتياطية سريعة
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('backup_full') }}">
+                            <i class="fas fa-archive"></i> نسخة احتياطية كاملة
+                        </a></li>
+                        {% if has_permission('restore_database') %}
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('restore_backup') }}">
+                            <i class="fas fa-upload"></i> استعادة نسخة احتياطية
+                        </a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+                {% endif %}
+                
+                {% if has_permission('manage_users') or has_permission('manage_settings') or has_permission('manage_permissions') %}
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-cogs"></i> الإدارة
+                    </a>
+                    <ul class="dropdown-menu">
+                        {% if has_permission('manage_users') %}
+                        <li><a class="dropdown-item" href="{{ url_for('admin') }}">
+                            <i class="fas fa-users-cog"></i> إدارة المستخدمين
+                        </a></li>
+                        {% endif %}
+                        {% if has_permission('manage_settings') %}
+                        <li><a class="dropdown-item" href="{{ url_for('admin') }}">
+                            <i class="fas fa-cog"></i> إعدادات النظام
+                        </a></li>
+                        {% endif %}
+                        {% if has_permission('manage_dynamic_fields') %}
+                        <li><a class="dropdown-item" href="{{ url_for('admin') }}">
+                            <i class="fas fa-list-alt"></i> إدارة الحقول
+                        </a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+                {% endif %}
             </div>
             <div class="navbar-nav">
                 <span class="navbar-text me-3">مرحباً، {{ session.username }}</span>
