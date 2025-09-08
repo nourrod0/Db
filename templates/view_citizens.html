@@ -59,7 +59,9 @@
                                 <th>الجوال</th>
                                 <th>الحالة</th>
                                 <th>أفراد الأسرة</th>
+                                {% if not hide_usernames %}
                                 <th>أضيف بواسطة</th>
+                                {% endif %}
                                 <th>تاريخ الإضافة</th>
                                 <th>إجراءات</th>
                             </tr>
@@ -77,7 +79,9 @@
                                     </span>
                                 </td>
                                 <td>{{ citizen[5] }}</td>
+                                {% if not hide_usernames %}
                                 <td>{{ citizen[8] }}</td>
+                                {% endif %}
                                 <td>{{ citizen[9][:10] }}</td>
                                 <td>
                                     <button class="btn btn-info btn-sm" onclick="viewDetails({{ citizen[0] }})">
@@ -86,7 +90,7 @@
                                     <a href="{{ url_for('edit_citizen', citizen_id=citizen[0]) }}" class="btn btn-warning btn-sm">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    {% if session.is_admin %}
+                                    {% if session.is_admin or has_permission('delete_citizens') %}
                                     <button class="btn btn-danger btn-sm" onclick="deleteRecord({{ citizen[0] }})">
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -133,10 +137,17 @@
 
 {% block extra_js %}
 <script>
+const hideUsernames = {{ 'true' if hide_usernames else 'false' }};
+
 function viewDetails(citizenId) {
     fetch(`/citizen_details/${citizenId}`)
         .then(response => response.json())
         .then(data => {
+            let addedByField = '';
+            if (!hideUsernames) {
+                addedByField = `<div class="col-md-6"><strong>أضيف بواسطة:</strong> ${data.added_by}</div>`;
+            }
+            
             document.getElementById('modalContent').innerHTML = `
                 <div class="row">
                     <div class="col-md-6"><strong>الاسم:</strong> ${data.full_name}</div>
@@ -144,7 +155,7 @@ function viewDetails(citizenId) {
                     <div class="col-md-6"><strong>الجوال:</strong> ${data.phone}</div>
                     <div class="col-md-6"><strong>الحالة:</strong> ${data.status}</div>
                     <div class="col-md-6"><strong>أفراد الأسرة:</strong> ${data.family_members}</div>
-                    <div class="col-md-6"><strong>أضيف بواسطة:</strong> ${data.added_by}</div>
+                    ${addedByField}
                     <div class="col-12 mt-3"><strong>العنوان:</strong><br>${data.address}</div>
                     <div class="col-12 mt-3"><strong>ملاحظات:</strong><br>${data.notes || 'لا توجد ملاحظات'}</div>
                 </div>

@@ -80,9 +80,27 @@
                                         <input type="text" class="form-control" id="search_text" name="search_text" placeholder="البحث في الاسم أو الرقم الوطني">
                                     </div>
                                     
-                                    {% if users %}
+                                    {% if can_view_all_data %}
                                     <div class="mb-3">
-                                        <label class="form-label">المستخدمون المضافون للبيانات</label>
+                                        <label class="form-label">نطاق التصدير</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" value="my_data" id="export_my_data" name="export_scope" checked>
+                                            <label class="form-check-label" for="export_my_data">
+                                                <i class="fas fa-user"></i> بياناتي فقط
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" value="all_data" id="export_all_data" name="export_scope">
+                                            <label class="form-check-label" for="export_all_data">
+                                                <i class="fas fa-users"></i> جميع البيانات (بدون عرض أسماء المستخدمين)
+                                            </label>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if users %}
+                                    <div class="mb-3" id="admin_user_filters">
+                                        <label class="form-label">المستخدمون المضافون للبيانات (للمدير فقط)</label>
                                         <div class="form-check">
                                             <input class="form-check-input" type="checkbox" value="all" id="all_users" checked>
                                             <label class="form-check-label" for="all_users">
@@ -236,6 +254,29 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
+    // Handle export scope selection
+    const exportScopeElements = document.querySelectorAll('input[name="export_scope"]');
+    const adminUserFilters = document.getElementById('admin_user_filters');
+    
+    exportScopeElements.forEach(element => {
+        element.addEventListener('change', function() {
+            // Show/hide admin user filters based on export scope and if all data is selected
+            if (adminUserFilters) {
+                if (this.value === 'all_data') {
+                    adminUserFilters.style.display = 'block';
+                } else {
+                    adminUserFilters.style.display = 'none';
+                }
+            }
+            updatePreview();
+        });
+    });
+    
+    // Hide admin user filters initially if "my data" is selected
+    if (adminUserFilters && document.getElementById('export_my_data') && document.getElementById('export_my_data').checked) {
+        adminUserFilters.style.display = 'none';
+    }
+
     // Handle "جميع المستخدمين" checkbox
     const allUsersElement = document.getElementById('all_users');
     if (allUsersElement) {
@@ -292,7 +333,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Update preview when filters change
-    document.querySelectorAll('input[type="date"], input[type="text"]').forEach(input => {
+    document.querySelectorAll('input[type="date"], input[type="text"], input[type="radio"]').forEach(input => {
         input.addEventListener('change', updatePreview);
     });
     
