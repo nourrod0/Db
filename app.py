@@ -445,8 +445,8 @@ def view_citizens():
     query = "SELECT * FROM citizens WHERE 1=1"
     params = []
     
-    # إذا لم يكن مدير، عرض البيانات المضافة من المستخدم فقط
-    if not session.get('is_admin'):
+    # إذا لم يكن لديه صلاحية عرض جميع البيانات، عرض البيانات المضافة من المستخدم فقط
+    if not (session.get('is_admin') or has_permission(session['user_id'], 'view_all_data')):
         query += " AND added_by = ?"
         params.append(session['username'])
     
@@ -479,7 +479,19 @@ def view_citizens():
 
 @app.route('/admin')
 def admin():
-    if 'user_id' not in session or not session.get('is_admin'):
+    if 'user_id' not in session:
+        flash('يجب تسجيل الدخول أولاً', 'error')
+        return redirect(url_for('login'))
+    
+    # فحص صلاحيات الإدارة - المدراء أو المستخدمون الذين لديهم صلاحيات إدارية
+    user_has_admin_permission = (
+        session.get('is_admin') or 
+        has_permission(session['user_id'], 'manage_users') or
+        has_permission(session['user_id'], 'manage_settings') or
+        has_permission(session['user_id'], 'manage_permissions')
+    )
+    
+    if not user_has_admin_permission:
         flash('غير مسموح لك بالوصول لهذه الصفحة', 'error')
         return redirect(url_for('dashboard'))
     
@@ -1207,8 +1219,12 @@ def update_settings():
 
 @app.route('/backup')
 def backup():
-    if 'user_id' not in session or not session.get('is_admin'):
+    if 'user_id' not in session:
         return redirect(url_for('login'))
+    
+    if not (session.get('is_admin') or has_permission(session['user_id'], 'backup_database')):
+        flash('غير مسموح لك بعمل نسخ احتياطية', 'error')
+        return redirect(url_for('dashboard'))
     
     backup_name = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
     shutil.copy2('database.db', backup_name)
@@ -1217,8 +1233,12 @@ def backup():
 
 @app.route('/backup_full')
 def backup_full():
-    if 'user_id' not in session or not session.get('is_admin'):
+    if 'user_id' not in session:
         return redirect(url_for('login'))
+    
+    if not (session.get('is_admin') or has_permission(session['user_id'], 'backup_database')):
+        flash('غير مسموح لك بعمل نسخ احتياطية كاملة', 'error')
+        return redirect(url_for('dashboard'))
     
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     backup_filename = f"full_backup_{timestamp}.zip"
@@ -1266,8 +1286,12 @@ def backup_full():
 
 @app.route('/restore_backup', methods=['GET', 'POST'])
 def restore_backup():
-    if 'user_id' not in session or not session.get('is_admin'):
+    if 'user_id' not in session:
         return redirect(url_for('login'))
+    
+    if not (session.get('is_admin') or has_permission(session['user_id'], 'restore_database')):
+        flash('غير مسموح لك باستعادة نسخ احتياطية', 'error')
+        return redirect(url_for('dashboard'))
     
     if request.method == 'POST':
         if 'backup_file' not in request.files:
