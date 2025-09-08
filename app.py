@@ -470,12 +470,17 @@ def view_citizens():
     
     conn.close()
     
+    # Check if user can view all data but is not admin (should hide usernames)
+    can_view_all_data = session.get('is_admin') or has_permission(session['user_id'], 'view_all_data')
+    hide_usernames = can_view_all_data and not session.get('is_admin')
+    
     return render_template('view_citizens.html', 
                          citizens=citizens,
                          page=page,
                          total_pages=total_pages,
                          search=search,
-                         status_filter=status_filter)
+                         status_filter=status_filter,
+                         hide_usernames=hide_usernames)
 
 @app.route('/admin')
 def admin():
@@ -584,7 +589,12 @@ def export():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
-    # Get all users if admin
+    # Check if user has permission to export data
+    if not (session.get('is_admin') or has_permission(session['user_id'], 'export_data') or has_permission(session['user_id'], 'export_advanced')):
+        flash('ليس لديك صلاحية لتصدير البيانات', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Get all users if admin (for admin interface only)
     users = []
     if session.get('is_admin'):
         conn = sqlite3.connect('database.db')
@@ -593,12 +603,20 @@ def export():
         users = [row[0] for row in c.fetchall()]
         conn.close()
     
-    return render_template('export.html', users=users)
+    # Check if user can view all data
+    can_view_all_data = session.get('is_admin') or has_permission(session['user_id'], 'view_all_data')
+    
+    return render_template('export.html', users=users, can_view_all_data=can_view_all_data)
 
 @app.route('/export_advanced', methods=['GET', 'POST'])
 def export_advanced():
     if 'user_id' not in session:
         return redirect(url_for('login'))
+    
+    # Check if user has permission to export data
+    if not (session.get('is_admin') or has_permission(session['user_id'], 'export_data') or has_permission(session['user_id'], 'export_advanced')):
+        flash('ليس لديك صلاحية لتصدير البيانات', 'error')
+        return redirect(url_for('dashboard'))
     
     # Get filter parameters
     status_filters = request.values.getlist('status')
@@ -613,18 +631,24 @@ def export_advanced():
     preview = request.values.get('preview')
     user_filters = request.values.getlist('users')
     all_users = request.values.get('all_users')
+    export_scope = request.values.get('export_scope', 'my_data')  # 'my_data' or 'all_data'
     
     # Build query
     query = "SELECT * FROM citizens WHERE 1=1"
     params = []
     
-    # إذا لم يكن مدير، عرض البيانات المضافة من المستخدم فقط
-    if not session.get('is_admin'):
+    # Check user permissions for data access
+    can_view_all_data = session.get('is_admin') or has_permission(session['user_id'], 'view_all_data')
+    
+    # Apply data filtering based on permissions and user choice
+    if not can_view_all_data or export_scope == 'my_data':
+        # User can only see their own data OR chose to export only their data
         query += " AND added_by = ?"
         params.append(session['username'])
-    else:
-        # للمدير: تطبيق فلتر المستخدمين
-        if not all_users and user_filters:
+    elif can_view_all_data and export_scope == 'all_data':
+        # User has permission to view all data and chose to export all data
+        # Apply admin user filters only if admin
+        if session.get('is_admin') and not all_users and user_filters:
             placeholders = ','.join(['?' for _ in user_filters])
             query += f" AND added_by IN ({placeholders})"
             params.extend(user_filters)
@@ -1091,8 +1115,11 @@ def citizen_details(citizen_id):
 
 @app.route('/delete_citizen/<int:citizen_id>', methods=['DELETE'])
 def delete_citizen(citizen_id):
-    if 'user_id' not in session or not session.get('is_admin'):
+    if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
+    
+    if not (session.get('is_admin') or has_permission(session['user_id'], 'delete_citizens')):
+        return jsonify({'error': 'غير مسموح لك بحذف البيانات'}), 403
     
     conn = sqlite3.connect('database.db')
     c = conn.cursor()
