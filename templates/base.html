@@ -60,7 +60,7 @@
                     <i class="fas fa-tachometer-alt"></i> الرئيسية
                 </a>
                 
-                {% if has_permission('view_citizens') %}
+                {% if has_permission('view_citizens') or has_permission('view_all_data') %}
                 <a class="nav-link" href="{{ url_for('view_citizens') }}">
                     <i class="fas fa-list"></i> عرض البيانات
                 </a>
@@ -72,7 +72,7 @@
                 </a>
                 {% endif %}
                 
-                {% if has_permission('export_data') %}
+                {% if has_permission('export_data') or has_permission('export_advanced') %}
                 <a class="nav-link" href="{{ url_for('export') }}">
                     <i class="fas fa-download"></i> تصدير البيانات
                 </a>
