@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}سجل توزيع المواد{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>سجل توزيع المواد</h2>
+            <div>
+                {% if distributions and has_permission('view_material_distributions') %}
+                <a href="{{ url_for('export_distributions') }}" class="btn btn-success me-2">
+                    <i class="fas fa-file-export"></i> تصدير السجل
+                </a>
+                {% endif %}
+                {% if has_permission('distribute_materials') %}
+                <a href="{{ url_for('distribute_material') }}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> توزيع جديد
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-history"></i> سجل التوزيعات</h5>
+            </div>
+            <div class="card-body">
+                {% if distributions %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>رقم التوزيع</th>
+                                <th>المواطن</th>
+                                <th>الرقم الوطني</th>
+                                <th>المادة</th>
+                                <th>الكمية</th>
+                                <th>وزعت بواسطة</th>
+                                <th>تاريخ التوزيع</th>
+                                <th>ملاحظات</th>
+                                <th>إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for distribution in distributions %}
+                            <tr>
+                                <td>{{ distribution[0] }}</td>
+                                <td><strong>{{ distribution[1] }}</strong></td>
+                                <td>{{ distribution[2] }}</td>
+                                <td>
+                                    <span class="badge bg-primary">{{ distribution[3] }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-success">{{ distribution[4] }} {{ distribution[5] }}</span>
+                                </td>
+                                <td>{{ distribution[6] }}</td>
+                                <td>{{ distribution[7]|local_dt if distribution[7] else '-' }}</td>
+                                <td>{{ distribution[8] or '-' }}</td>
+                                <td>
+                                    {% if has_permission('edit_materials') or has_permission('distribute_materials') %}
+                                    <a href="{{ url_for('edit_distribution', distribution_id=distribution[0]) }}" class="btn btn-sm btn-outline-primary me-1">
+                                        <i class="fas fa-edit"></i> تعديل
+                                    </a>
+                                    {% endif %}
+                                    {% if has_permission('delete_materials') or session.is_admin %}
+                                    <a href="{{ url_for('delete_distribution', distribution_id=distribution[0]) }}" 
+                                       class="btn btn-sm btn-outline-danger"
+                                       onclick="return confirm('هل أنت متأكد من حذف هذا التوزيع؟ هذا الإجراء لا يمكن التراجع عنه.')">
+                                        <i class="fas fa-trash"></i> حذف
+                                    </a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-history fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">لا توجد توزيعات مسجلة</h4>
+                    <p class="text-muted">ابدأ بتوزيع المواد للمواطنين</p>
+                    {% if has_permission('distribute_materials') %}
+                    <a href="{{ url_for('distribute_material') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> توزيع جديد
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if distributions %}
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ distributions|length }}</h4>
+                        <p class="mb-0">إجمالي التوزيعات</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-chart-bar fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ distributions|groupby('1')|list|length }}</h4>
+                        <p class="mb-0">المواطنون المستفيدون</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-users fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ distributions|groupby('3')|list|length }}</h4>
+                        <p class="mb-0">أنواع المواد الموزعة</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-boxes fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

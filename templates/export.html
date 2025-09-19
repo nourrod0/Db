@@ -66,6 +66,34 @@
                                     </div>
                                     
                                     <div class="mb-3">
+                                        <label class="form-label">حالة استلام المواد</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" value="all" id="material_all" name="material_status" checked>
+                                            <label class="form-check-label" for="material_all">
+                                                <i class="fas fa-users"></i> جميع المواطنين
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" value="received" id="material_received" name="material_status">
+                                            <label class="form-check-label" for="material_received">
+                                                <i class="fas fa-check-circle text-success"></i> المستلمون للمواد فقط
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" value="not_received" id="material_not_received" name="material_status">
+                                            <label class="form-check-label" for="material_not_received">
+                                                <i class="fas fa-times-circle text-danger"></i> غير المستلمين للمواد فقط
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" value="multiple" id="material_multiple" name="material_status">
+                                            <label class="form-check-label" for="material_multiple">
+                                                <i class="fas fa-sync text-warning"></i> المستلمون أكثر من مرة
+                                            </label>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
                                         <label for="date_from" class="form-label">من تاريخ</label>
                                         <input type="date" class="form-control" id="date_from" name="date_from">
                                     </div>
@@ -100,7 +128,7 @@
 
                                     {% if users %}
                                     <div class="mb-3" id="admin_user_filters">
-                                        <label class="form-label">المستخدمون المضافون للبيانات (للمدير فقط)</label>
+                                        <label class="form-label">المستخدمون المضافون للبيانات</label>
                                         <div class="form-check">
                                             <input class="form-check-input" type="checkbox" value="all" id="all_users" checked>
                                             <label class="form-check-label" for="all_users">
@@ -330,6 +358,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.querySelectorAll('.field-filter').forEach(f => f.disabled = false);
             }
         });
+    });
+    
+    // Handle material status filters
+    document.querySelectorAll('input[name="material_status"]').forEach(input => {
+        input.addEventListener('change', updatePreview);
     });
     
     // Update preview when filters change

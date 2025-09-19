@@ -21,11 +21,11 @@
             <div class="card-body">
                 <!-- Filters -->
                 <form method="GET" class="row mb-4">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <input type="text" class="form-control" name="search" 
                                placeholder="البحث (الاسم، الرقم الوطني، الجوال)" value="{{ search }}">
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <select class="form-control" name="status">
                             <option value="">جميع الحالات</option>
                             <option value="ارملة" {{ 'selected' if status_filter == 'ارملة' }}>أرملة</option>
@@ -36,12 +36,20 @@
                             <option value="مرض تلاسيميا" {{ 'selected' if status_filter == 'مرض تلاسيميا' }}>مرض تلاسيميا</option>
                         </select>
                     </div>
+                    <div class="col-md-3">
+                        <select class="form-control" name="material_filter">
+                            <option value="">جميع المواطنين</option>
+                            <option value="received" {{ 'selected' if material_filter == 'received' }}>المستلمون للمواد</option>
+                            <option value="not_received" {{ 'selected' if material_filter == 'not_received' }}>غير المستلمين للمواد</option>
+                            <option value="multiple" {{ 'selected' if material_filter == 'multiple' }}>المستلمون أكثر من مرة</option>
+                        </select>
+                    </div>
                     <div class="col-md-2">
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-search"></i> بحث
                         </button>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <a href="{{ url_for('view_citizens') }}" class="btn btn-secondary">
                             <i class="fas fa-redo"></i> إعادة تعيين
                         </a>
@@ -108,7 +116,7 @@
                     <ul class="pagination justify-content-center">
                         {% for page_num in range(1, total_pages + 1) %}
                         <li class="page-item {{ 'active' if page_num == page }}">
-                            <a class="page-link" href="?page={{ page_num }}&search={{ search }}&status={{ status_filter }}">{{ page_num }}</a>
+                            <a class="page-link" href="?page={{ page_num }}&search={{ search }}&status={{ status_filter }}&material_filter={{ material_filter }}">{{ page_num }}</a>
                         </li>
                         {% endfor %}
                     </ul>
@@ -148,6 +156,52 @@ function viewDetails(citizenId) {
                 addedByField = `<div class="col-md-6"><strong>أضيف بواسطة:</strong> ${data.added_by}</div>`;
             }
             
+            let materialDistributionsHtml = '';
+            if (data.material_distributions && data.material_distributions.length > 0) {
+                materialDistributionsHtml = `
+                    <div class="col-12 mt-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6><i class="fas fa-boxes"></i> سجل المواد المستلمة:</h6>
+                            <button type="button" class="btn btn-success btn-sm" onclick="exportCitizenMaterials(${citizenId}, '${data.full_name}')">
+                                <i class="fas fa-file-excel"></i> تصدير سجل المواد
+                            </button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>المادة</th>
+                                        <th>الكمية</th>
+                                        <th>تاريخ الاستلام</th>
+                                        <th>المسلم بواسطة</th>
+                                        <th>ملاحظات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.material_distributions.map(dist => `
+                                        <tr>
+                                            <td><span class="badge bg-primary">${dist[0]}</span></td>
+                                            <td><span class="badge bg-success">${dist[1]} ${dist[2]}</span></td>
+                                            <td>${new Date(dist[3]).toLocaleDateString('ar-EG')}</td>
+                                            <td>${dist[4]}</td>
+                                            <td>${dist[5] || '-'}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            } else {
+                materialDistributionsHtml = `
+                    <div class="col-12 mt-4">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> لم يتم تسليم أي مواد لهذا المواطن حتى الآن
+                        </div>
+                    </div>
+                `;
+            }
+            
             document.getElementById('modalContent').innerHTML = `
                 <div class="row">
                     <div class="col-md-6"><strong>الاسم:</strong> ${data.full_name}</div>
@@ -158,6 +212,7 @@ function viewDetails(citizenId) {
                     ${addedByField}
                     <div class="col-12 mt-3"><strong>العنوان:</strong><br>${data.address}</div>
                     <div class="col-12 mt-3"><strong>ملاحظات:</strong><br>${data.notes || 'لا توجد ملاحظات'}</div>
+                    ${materialDistributionsHtml}
                 </div>
             `;
             new bootstrap.Modal(document.getElementById('detailsModal')).show();
@@ -176,6 +231,16 @@ function deleteRecord(citizenId) {
                 }
             });
     }
+}
+
+function exportCitizenMaterials(citizenId, citizenName) {
+    // Create a temporary link to download the file
+    const link = document.createElement('a');
+    link.href = `/export_citizen_materials/${citizenId}`;
+    link.download = `سجل_المواد_المستلمة_${citizenName}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 </script>
 {% endblock %}

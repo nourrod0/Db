@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}إدارة المواد{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>إدارة المواد</h2>
+            <div>
+                {% if materials and has_permission('view_materials') %}
+                <a href="{{ url_for('export_materials') }}" class="btn btn-success me-2">
+                    <i class="fas fa-file-export"></i> تصدير قائمة المواد
+                </a>
+                {% endif %}
+                {% if has_permission('add_materials') %}
+                <a href="{{ url_for('add_material') }}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> إضافة مادة جديدة
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-boxes"></i> قائمة المواد</h5>
+            </div>
+            <div class="card-body">
+                {% if materials %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>رقم المادة</th>
+                                <th>اسم المادة</th>
+                                <th>الوصف</th>
+                                <th>الوحدة</th>
+                                <th>الحالة</th>
+                                <th>أضيفت بواسطة</th>
+                                <th>تاريخ الإضافة</th>
+                                <th>إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for material in materials %}
+                            <tr>
+                                <td>{{ material[0] }}</td>
+                                <td><strong>{{ material[1] }}</strong></td>
+                                <td>{{ material[2] or '-' }}</td>
+                                <td><span class="badge bg-info">{{ material[3] }}</span></td>
+                                <td>
+                                    <span class="badge {{ 'bg-success' if material[4] else 'bg-warning' }}">
+                                        {{ 'نشطة' if material[4] else 'معطلة' }}
+                                    </span>
+                                </td>
+                                <td>{{ material[5] }}</td>
+                                <td>{{ material[6]|local_dt if material[6] else '-' }}</td>
+                                <td>
+                                    {% if has_permission('edit_materials') %}
+                                    <a href="{{ url_for('edit_material', material_id=material[0]) }}" class="btn btn-sm btn-outline-primary me-1">
+                                        <i class="fas fa-edit"></i> تعديل
+                                    </a>
+                                    {% endif %}
+                                    {% if has_permission('delete_materials') %}
+                                    <a href="{{ url_for('delete_material', material_id=material[0]) }}" 
+                                       class="btn btn-sm btn-outline-danger"
+                                       onclick="return confirm('هل أنت متأكد من حذف هذه المادة؟ هذا الإجراء لا يمكن التراجع عنه.')">
+                                        <i class="fas fa-trash"></i> حذف
+                                    </a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-boxes fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">لا توجد مواد مسجلة</h4>
+                    <p class="text-muted">ابدأ بإضافة المواد الأولى إلى النظام</p>
+                    {% if has_permission('add_materials') %}
+                    <a href="{{ url_for('add_material') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> إضافة مادة جديدة
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

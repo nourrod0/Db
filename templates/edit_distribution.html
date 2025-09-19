@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}تعديل التوزيع{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-edit"></i> تعديل توزيع المادة</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">المواطن</label>
+                            <div class="form-control bg-light">
+                                <strong>{{ distribution[2] }}</strong> ({{ distribution[3] }})
+                            </div>
+                            <small class="text-muted">لا يمكن تغيير المواطن المستلم</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="material_id" class="form-label">المادة <span class="text-danger">*</span></label>
+                            <select class="form-select" id="material_id" name="material_id" required>
+                                {% for material in materials %}
+                                <option value="{{ material[0] }}" {{ 'selected' if material[0] == distribution[4] }}>
+                                    {{ material[1] }} ({{ material[2] }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="quantity" class="form-label">الكمية <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="quantity" name="quantity" 
+                                   value="{{ distribution[6] }}" min="1" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">ملاحظات</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="3" 
+                                  placeholder="ملاحظات حول التوزيع (اختياري)">{{ distribution[7] or '' }}</textarea>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('material_distributions') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> رجوع إلى السجل
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> حفظ التعديلات
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6><i class="fas fa-info-circle"></i> معلومات التوزيع</h6>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <strong>رقم التوزيع:</strong> {{ distribution[0] }}<br>
+                    <strong>المادة الحالية:</strong> {{ distribution[5] }}<br>
+                    <strong>الكمية الحالية:</strong> {{ distribution[6] }}
+                    <hr>
+                    <strong>تذكير:</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>يمكن تغيير المادة والكمية فقط</li>
+                        <li>المواطن المستلم لا يمكن تغييره</li>
+                        <li>تاريخ التوزيع يبقى كما هو</li>
+                        <li>يمكن تعديل الملاحظات</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}نظام الاستعادة المحسن{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-tools"></i> نظام الاستعادة المحسن</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>النظام المحسن:</strong> يوفر خيارات متقدمة لاستعادة النسخ الاحتياطية بشكل انتقائي حسب احتياجاتك
+                </div>
+                
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>تحذير:</strong> سيتم إنشاء نسخة احتياطية تلقائية من الحالة الحالية قبل الاستعادة
+                </div>
+                
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-4">
+                        <label for="backup_file" class="form-label">اختر ملف النسخة الاحتياطية الكاملة</label>
+                        <input type="file" class="form-control" id="backup_file" name="backup_file" 
+                               accept=".zip" required>
+                        <div class="form-text">يدعم ملفات .zip فقط للنظام المحسن</div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="form-label">اختر نوع الاستعادة:</label>
+                        <div class="mt-2">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="restore_type" 
+                                               value="structure_only" id="restore_structure" checked>
+                                        <label class="form-check-label" for="restore_structure">
+                                            <strong><i class="fas fa-code text-primary"></i> استعادة البنية فقط (مُوصى للتحديثات)</strong>
+                                        </label>
+                                    </div>
+                                    <small class="text-muted ms-4">
+                                        يستعيد الكود وملفات القوالب والملفات الثابتة ويحافظ على البيانات الحالية. 
+                                        مفيد لتطبيق التحديثات على النظام دون فقدان البيانات.
+                                    </small>
+                                </div>
+                            </div>
+                            
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="restore_type" 
+                                               value="data_only" id="restore_data">
+                                        <label class="form-check-label" for="restore_data">
+                                            <strong><i class="fas fa-database text-success"></i> استعادة البيانات فقط</strong>
+                                        </label>
+                                    </div>
+                                    <small class="text-muted ms-4">
+                                        يستعيد قاعدة البيانات فقط ويحافظ على الكود والملفات الحالية. 
+                                        مفيد لاستعادة بيانات من نسخة احتياطية قديمة.
+                                    </small>
+                                </div>
+                            </div>
+                            
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="restore_type" 
+                                               value="full" id="restore_full">
+                                        <label class="form-check-label" for="restore_full">
+                                            <strong><i class="fas fa-refresh text-danger"></i> استعادة كاملة (البنية والبيانات)</strong>
+                                        </label>
+                                    </div>
+                                    <small class="text-muted ms-4">
+                                        يستعيد كل شيء: الكود وقاعدة البيانات وجميع الملفات. 
+                                        يُستخدم لاستعادة النظام بالكامل إلى حالة سابقة.
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="confirm_restore" required>
+                            <label class="form-check-label" for="confirm_restore">
+                                <strong>أؤكد أنني أفهم عواقب هذه العملية وأريد المتابعة</strong>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="alert alert-success">
+                                <strong><i class="fas fa-shield-alt"></i> الحماية المدمجة:</strong>
+                                <ul class="mb-0 mt-2">
+                                    <li>نسخة احتياطية تلقائية قبل الاستعادة</li>
+                                    <li>فحص سلامة الملفات</li>
+                                    <li>إمكانية التراجع</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="alert alert-info">
+                                <strong><i class="fas fa-lightbulb"></i> نصائح:</strong>
+                                <ul class="mb-0 mt-2">
+                                    <li>للتحديثات: اختر "البنية فقط"</li>
+                                    <li>لاستعادة البيانات: اختر "البيانات فقط"</li>
+                                    <li>للاستعادة الكاملة: اختر "استعادة كاملة"</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('admin') }}" class="btn btn-secondary me-md-2">إلغاء</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-tools"></i> بدء عملية الاستعادة المحسنة
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6><i class="fas fa-question-circle"></i> مقارنة أنواع الاستعادة</h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>نوع الاستعادة</th>
+                                <th>الكود (app.py)</th>
+                                <th>القوالب</th>
+                                <th>الملفات الثابتة</th>
+                                <th>قاعدة البيانات</th>
+                                <th>الاستخدام المُوصى</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="badge bg-primary">البنية فقط</span></td>
+                                <td><i class="fas fa-check text-success"></i></td>
+                                <td><i class="fas fa-check text-success"></i></td>
+                                <td><i class="fas fa-check text-success"></i></td>
+                                <td><i class="fas fa-times text-danger"></i></td>
+                                <td>التحديثات وإصلاح الأخطاء</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-success">البيانات فقط</span></td>
+                                <td><i class="fas fa-times text-danger"></i></td>
+                                <td><i class="fas fa-times text-danger"></i></td>
+                                <td><i class="fas fa-times text-danger"></i></td>
+                                <td><i class="fas fa-check text-success"></i></td>
+                                <td>استعادة البيانات المفقودة</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-danger">استعادة كاملة</span></td>
+                                <td><i class="fas fa-check text-success"></i></td>
+                                <td><i class="fas fa-check text-success"></i></td>
+                                <td><i class="fas fa-check text-success"></i></td>
+                                <td><i class="fas fa-check text-success"></i></td>
+                                <td>استعادة شاملة للنظام</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// إضافة تأثيرات تفاعلية لتحسين تجربة المستخدم
+document.addEventListener('DOMContentLoaded', function() {
+    const radioButtons = document.querySelectorAll('input[name="restore_type"]');
+    const cards = document.querySelectorAll('.card-body');
+    
+    radioButtons.forEach(radio => {
+        radio.addEventListener('change', function() {
+            // إزالة التمييز من جميع البطاقات
+            cards.forEach(card => {
+                if (card.querySelector('.form-check-input')) {
+                    card.parentElement.classList.remove('border-primary', 'border-success', 'border-danger');
+                }
+            });
+            
+            // إضافة التمييز للبطاقة المحددة
+            if (this.checked) {
+                const parentCard = this.closest('.card');
+                if (this.value === 'structure_only') {
+                    parentCard.classList.add('border-primary');
+                } else if (this.value === 'data_only') {
+                    parentCard.classList.add('border-success');
+                } else if (this.value === 'full') {
+                    parentCard.classList.add('border-danger');
+                }
+            }
+        });
+    });
+    
+    // تطبيق التمييز الأولي
+    document.getElementById('restore_structure').dispatchEvent(new Event('change'));
+});
+</script>
+{% endblock %}

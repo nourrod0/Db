@@ -150,6 +150,7 @@
                     </div>
                     {% endif %}
                     
+                    {# خيار إدارة الحقول الديناميكية مخفي بناءً على طلب المستخدم
                     {% if has_permission('manage_dynamic_fields') %}
                     <div class="col-md-4 mb-2">
                         <a href="{{ url_for('admin') }}" class="btn btn-success w-100">
@@ -157,6 +158,7 @@
                         </a>
                     </div>
                     {% endif %}
+                    #}
                 </div>
             </div>
         </div>

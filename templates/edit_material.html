@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}تعديل المادة{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-edit"></i> تعديل المادة</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="name" class="form-label">اسم المادة <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="name" name="name" value="{{ material[1] }}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="unit" class="form-label">وحدة القياس</label>
+                            <select class="form-select" id="unit" name="unit">
+                                <option value="قطعة" {{ 'selected' if material[3] == 'قطعة' else '' }}>قطعة</option>
+                                <option value="كيلو" {{ 'selected' if material[3] == 'كيلو' else '' }}>كيلو</option>
+                                <option value="لتر" {{ 'selected' if material[3] == 'لتر' else '' }}>لتر</option>
+                                <option value="متر" {{ 'selected' if material[3] == 'متر' else '' }}>متر</option>
+                                <option value="صندوق" {{ 'selected' if material[3] == 'صندوق' else '' }}>صندوق</option>
+                                <option value="حبة" {{ 'selected' if material[3] == 'حبة' else '' }}>حبة</option>
+                                <option value="علبة" {{ 'selected' if material[3] == 'علبة' else '' }}>علبة</option>
+                                <option value="كيس" {{ 'selected' if material[3] == 'كيس' else '' }}>كيس</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">وصف المادة</label>
+                        <textarea class="form-control" id="description" name="description" rows="3" placeholder="وصف تفصيلي للمادة (اختياري)">{{ material[2] or '' }}</textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="is_active" name="is_active" {{ 'checked' if material[4] else '' }}>
+                            <label class="form-check-label" for="is_active">
+                                المادة نشطة (متاحة للتوزيع)
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('manage_materials') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> رجوع
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> حفظ التعديلات
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
