@@ -160,8 +160,16 @@ def init_db():
         address TEXT NOT NULL,
         notes TEXT,
         added_by TEXT NOT NULL,
+        assigned_to TEXT DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
+    
+    # إضافة عمود assigned_to للجداول الموجودة (للتوافق مع النسخة القديمة)
+    try:
+        c.execute('ALTER TABLE citizens ADD COLUMN assigned_to TEXT DEFAULT NULL')
+    except sqlite3.OperationalError:
+        # العمود موجود بالفعل
+        pass
     
     # Settings table
     c.execute('''CREATE TABLE IF NOT EXISTS settings (
@@ -537,6 +545,112 @@ def login():
     
     return render_template('login.html')
 
+@app.route('/public_inquiry', methods=['GET', 'POST'])
+def public_inquiry():
+    """صفحة الاستعلام العام للزوار لمعرفة المواد المسلمة"""
+    
+    if not is_site_active():
+        return render_template('maintenance.html')
+    
+    citizen_data = None
+    materials_received = []
+    search_performed = False
+    
+    if request.method == 'POST':
+        search_type = request.form.get('search_type', 'national_id').strip()
+        search_term = request.form.get('search_term', '').strip()
+        full_name_search = request.form.get('full_name_search', '').strip()
+        
+        # تحديد نوع البحث والقيم
+        search_performed = True
+        citizen_result = None
+        
+        # Validation before opening database connection
+        if search_type == 'national_id' and search_term:
+            # البحث بالرقم الوطني
+            # Server-side validation: التأكد من أن المدخل هو رقم وطني صحيح (11 رقم)
+            if not search_term.isdigit() or len(search_term) != 11:
+                flash('يجب إدخال رقم وطني صحيح مكون من 11 رقم فقط', 'error')
+                return render_template('public_inquiry.html', 
+                                     citizen_data=None,
+                                     materials_received=[],
+                                     search_performed=True)
+        elif search_type == 'full_name' and full_name_search:
+            # البحث بالاسم الثلاثي
+            # Server-side validation: التأكد من أن الاسم ليس فارغاً ولا يحتوي على أرقام فقط
+            if len(full_name_search.strip()) < 3:
+                flash('يجب إدخال الاسم الثلاثي كاملاً (3 أحرف على الأقل)', 'error')
+                return render_template('public_inquiry.html', 
+                                     citizen_data=None,
+                                     materials_received=[],
+                                     search_performed=True)
+            
+            if full_name_search.strip().isdigit():
+                flash('الاسم لا يمكن أن يكون أرقام فقط', 'error')
+                return render_template('public_inquiry.html', 
+                                     citizen_data=None,
+                                     materials_received=[],
+                                     search_performed=True)
+        else:
+            # لم يتم إدخال قيم البحث
+            flash('يجب إدخال قيمة للبحث', 'error')
+            return render_template('public_inquiry.html', 
+                                 citizen_data=None,
+                                 materials_received=[],
+                                 search_performed=True)
+        
+        # Open database connection after validation
+        conn = get_db_connection()
+        c = conn.cursor()
+        
+        try:
+            if search_type == 'national_id' and search_term:
+                # البحث بالرقم الوطني (بحث دقيق)
+                c.execute("""
+                    SELECT id, full_name, status 
+                    FROM citizens 
+                    WHERE national_id = ?
+                """, (search_term,))
+                
+                citizen_result = c.fetchone()
+                
+            elif search_type == 'full_name' and full_name_search:
+                # البحث بالاسم الثلاثي (بحث دقيق - مطابقة تامة)
+                c.execute("""
+                    SELECT id, full_name, status 
+                    FROM citizens 
+                    WHERE full_name = ?
+                """, (full_name_search.strip(),))
+                
+                citizen_result = c.fetchone()
+            
+            # معالجة نتائج البحث (مشتركة لكلا النوعين)
+            if citizen_result:
+                citizen_data = {
+                    'id': citizen_result[0],
+                    'full_name': citizen_result[1],
+                    'status': citizen_result[2]
+                }
+                
+                # جلب المواد المسلمة لهذا المواطن (بدون ملاحظات لأمان أكبر)
+                c.execute("""
+                    SELECT m.name, md.quantity, m.unit, md.distribution_date
+                    FROM material_distributions md
+                    JOIN materials m ON md.material_id = m.id
+                    WHERE md.citizen_id = ?
+                    ORDER BY md.distribution_date DESC
+                """, (citizen_result[0],))
+                
+                materials_received = c.fetchall()
+                
+        finally:
+            conn.close()
+    
+    return render_template('public_inquiry.html', 
+                         citizen_data=citizen_data,
+                         materials_received=materials_received,
+                         search_performed=search_performed)
+
 @app.route('/dashboard')
 def dashboard():
     if 'user_id' not in session:
@@ -793,35 +907,68 @@ def edit_citizen(citizen_id):
         address = request.form['address']
         notes = request.form.get('notes', '')
         
+        # معالجة assigned_to للمديرين فقط مع validation
+        assigned_to = None
+        if session.get('is_admin'):
+            assigned_to_input = request.form.get('assigned_to', '').strip()
+            if assigned_to_input:
+                # التحقق من وجود المستخدم
+                c.execute("SELECT username FROM users WHERE username = ?", (assigned_to_input,))
+                if c.fetchone():
+                    assigned_to = assigned_to_input
+                else:
+                    return render_error('المستخدم المحدد غير موجود')
+        
+        # Helper function لإعادة عرض الصفحة مع المستخدمين في حالة الخطأ
+        def render_error(message):
+            flash(message, 'error')
+            users = []
+            if session.get('is_admin'):
+                c.execute("SELECT id, username FROM users ORDER BY username")
+                users = c.fetchall()
+            conn.close()
+            return render_template('edit_citizen.html', citizen=citizen, users=users)
+        
         # Validation
         if len(national_id) != 11 or not national_id.isdigit():
-            flash('الرقم الوطني يجب أن يكون 11 رقم', 'error')
-            conn.close()
-            return render_template('edit_citizen.html', citizen=citizen)
+            return render_error('الرقم الوطني يجب أن يكون 11 رقم')
         
         if len(phone) != 10 or not phone.startswith('09') or not phone.isdigit():
-            flash('رقم الجوال يجب أن يكون 10 أرقام ويبدأ ب 09', 'error')
-            conn.close()
-            return render_template('edit_citizen.html', citizen=citizen)
+            return render_error('رقم الجوال يجب أن يكون 10 أرقام ويبدأ ب 09')
         
         if family_members > 50:
-            flash('عدد أفراد الأسرة لا يمكن أن يتجاوز 50', 'error')
-            conn.close()
-            return render_template('edit_citizen.html', citizen=citizen)
+            return render_error('عدد أفراد الأسرة لا يمكن أن يتجاوز 50')
         
         # Check if national_id already exists for another citizen
         c.execute("SELECT * FROM citizens WHERE national_id = ? AND id != ?", (national_id, citizen_id))
         if c.fetchone():
-            flash('الرقم الوطني مسجل مسبقاً لمواطن آخر', 'error')
-            conn.close()
-            return render_template('edit_citizen.html', citizen=citizen)
+            return render_error('الرقم الوطني مسجل مسبقاً لمواطن آخر')
         
         try:
-            c.execute('''UPDATE citizens SET 
-                        full_name = ?, national_id = ?, phone = ?, status = ?, 
-                        family_members = ?, address = ?, notes = ?
-                        WHERE id = ?''',
-                     (full_name, national_id, phone, status, family_members, address, notes, citizen_id))
+            if session.get('is_admin'):
+                # المديرون يمكنهم تحديث assigned_to
+                # عند نسب البيانات لمستخدم، يصبح ذلك المستخدم هو من أضاف البيانات
+                if assigned_to:
+                    # نسب البيانات: تحديث كل من assigned_to و added_by
+                    c.execute('''UPDATE citizens SET 
+                                full_name = ?, national_id = ?, phone = ?, status = ?, 
+                                family_members = ?, address = ?, notes = ?, assigned_to = ?, added_by = ?
+                                WHERE id = ?''',
+                             (full_name, national_id, phone, status, family_members, address, notes, assigned_to, assigned_to, citizen_id))
+                else:
+                    # إلغاء النسب: تحديث assigned_to فقط (نحافظ على added_by الأصلي)
+                    c.execute('''UPDATE citizens SET 
+                                full_name = ?, national_id = ?, phone = ?, status = ?, 
+                                family_members = ?, address = ?, notes = ?, assigned_to = ?
+                                WHERE id = ?''',
+                             (full_name, national_id, phone, status, family_members, address, notes, assigned_to, citizen_id))
+            else:
+                # المستخدمون العاديون لا يمكنهم تحديث assigned_to (نحافظ على القيمة الحالية)
+                c.execute('''UPDATE citizens SET 
+                            full_name = ?, national_id = ?, phone = ?, status = ?, 
+                            family_members = ?, address = ?, notes = ?
+                            WHERE id = ?''',
+                         (full_name, national_id, phone, status, family_members, address, notes, citizen_id))
             conn.commit()
             flash('تم تحديث البيانات بنجاح', 'success')
             conn.close()
@@ -830,8 +977,14 @@ def edit_citizen(citizen_id):
             flash('خطأ في تحديث البيانات', 'error')
             conn.close()
     
+    # جلب قائمة المستخدمين للمديرين فقط
+    users = []
+    if session.get('is_admin'):
+        c.execute("SELECT id, username FROM users ORDER BY username")
+        users = c.fetchall()
+    
     conn.close()
-    return render_template('edit_citizen.html', citizen=citizen)
+    return render_template('edit_citizen.html', citizen=citizen, users=users)
 
 @app.route('/export')
 def export():
