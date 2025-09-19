@@ -63,6 +63,20 @@
                         <textarea class="form-control" id="notes" name="notes" rows="2">{{ citizen[7] or '' }}</textarea>
                     </div>
                     
+                    <!-- خيار نسب المواطن لمستخدم محدد - للمديرين فقط -->
+                    {% if session.is_admin and users %}
+                    <div class="mb-3">
+                        <label for="assigned_to" class="form-label">نسب المواطن إلى مستخدم</label>
+                        <select class="form-control" id="assigned_to" name="assigned_to">
+                            <option value="">غير منسوب</option>
+                            {% for user in users %}
+                            <option value="{{ user[1] }}" {{ 'selected' if citizen[10] == user[1] }}>{{ user[1] }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">يمكن للمدير تحديد المستخدم الذي سيكون مسؤولاً عن هذا المواطن</small>
+                    </div>
+                    {% endif %}
+                    
                     <div class="d-flex justify-content-between">
                         <button type="submit" class="btn btn-success">
                             <i class="fas fa-save"></i> حفظ التعديلات
@@ -84,7 +98,10 @@
             <div class="card-body py-2">
                 <small class="text-muted">
                     <i class="fas fa-user"></i> أضيف بواسطة: {{ citizen[8] }} 
-                    <i class="fas fa-calendar"></i> في: {{ citizen[9][:19] }}
+                    {% if citizen[10] %}
+                    <i class="fas fa-user-tag"></i> منسوب إلى: {{ citizen[10] }}
+                    {% endif %}
+                    <i class="fas fa-calendar"></i> في: {{ citizen[9][:19] if citizen[9] else 'غير محدد' }}
                 </small>
             </div>
         </div>
