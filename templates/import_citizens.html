@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}استيراد بيانات المواطنين{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4">
+            <i class="fas fa-file-excel"></i>
+            استيراد بيانات المواطنين من Excel
+        </h2>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-upload"></i>
+                    رفع ملف Excel
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('import_citizens_process') }}" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="excel_file" class="form-label">اختر ملف Excel:</label>
+                        <input type="file" class="form-control" id="excel_file" name="excel_file" accept=".xlsx,.xls" required>
+                        <div class="form-text">الملفات المدعومة: .xlsx, .xls</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="assigned_user" class="form-label">نسب البيانات إلى المستخدم:</label>
+                        <select class="form-select" id="assigned_user" name="assigned_user" required>
+                            <option value="">اختر المستخدم...</option>
+                            {% for user in users %}
+                            <option value="{{ user[0] }}">{{ user[1] }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">سيتم نسب جميع البيانات المستوردة إلى المستخدم المحدد</div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-file-import"></i>
+                        استيراد البيانات
+                    </button>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i>
+                        إلغاء
+                    </a>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-question-circle"></i>
+                    كيفية تحضير ملف Excel
+                </h5>
+            </div>
+            <div class="card-body">
+                <h6>الأعمدة المطلوبة:</h6>
+                <ul class="list-unstyled">
+                    <li><span class="badge bg-primary">الاسم الثلاثي</span></li>
+                    <li><span class="badge bg-primary">الرقم الوطني</span></li>
+                    <li><span class="badge bg-primary">الجوال</span></li>
+                    <li><span class="badge bg-primary">الحالة</span></li>
+                    <li><span class="badge bg-primary">أفراد الأسرة</span></li>
+                    <li><span class="badge bg-primary">العنوان</span></li>
+                    <li><span class="badge bg-secondary">الملاحظات</span> (اختياري)</li>
+                </ul>
+                
+                <h6 class="mt-3">ملاحظات مهمة:</h6>
+                <ul class="small">
+                    <li>الرقم الوطني يجب أن يكون 11 رقم</li>
+                    <li>رقم الجوال يجب أن يكون 10 أرقام ويبدأ بـ 09</li>
+                    <li>أفراد الأسرة يجب أن يكون رقم صحيح</li>
+                    <li>الحالة: ارملة، مطلقة، اعاقة، كبير بالعمر، حالة صعبة</li>
+                    <li>الأرقام الوطنية المكررة ستُتجاهل</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-download"></i>
+                    نموذج ملف Excel
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="small">يمكنك تحميل نموذج ملف Excel لمعرفة التنسيق المطلوب:</p>
+                <a href="{{ url_for('download_excel_template') }}" class="btn btn-success btn-sm">
+                    <i class="fas fa-file-excel"></i>
+                    تحميل النموذج
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-cogs"></i> خطوات الاستيراد</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 text-center mb-3">
+                        <div class="btn btn-outline-primary btn-lg rounded-circle mb-2" style="width: 60px; height: 60px;">
+                            <span class="h4">1</span>
+                        </div>
+                        <h6>تحضير ملف Excel</h6>
+                        <p class="small">استخدم النموذج المتوفر أو تأكد من وجود الأعمدة المطلوبة</p>
+                    </div>
+                    <div class="col-md-3 text-center mb-3">
+                        <div class="btn btn-outline-info btn-lg rounded-circle mb-2" style="width: 60px; height: 60px;">
+                            <span class="h4">2</span>
+                        </div>
+                        <h6>اختيار المستخدم</h6>
+                        <p class="small">حدد المستخدم الذي ستُنسب إليه البيانات المستوردة</p>
+                    </div>
+                    <div class="col-md-3 text-center mb-3">
+                        <div class="btn btn-outline-warning btn-lg rounded-circle mb-2" style="width: 60px; height: 60px;">
+                            <span class="h4">3</span>
+                        </div>
+                        <h6>رفع الملف</h6>
+                        <p class="small">اختر ملف Excel من جهازك واضغط على استيراد البيانات</p>
+                    </div>
+                    <div class="col-md-3 text-center mb-3">
+                        <div class="btn btn-outline-success btn-lg rounded-circle mb-2" style="width: 60px; height: 60px;">
+                            <span class="h4">4</span>
+                        </div>
+                        <h6>مراجعة النتائج</h6>
+                        <p class="small">ستظهر لك تقارير عن البيانات المستوردة والأخطاء إن وجدت</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -13,10 +13,10 @@
                 <form method="POST">
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="citizen_search" class="form-label">البحث عن المواطن <span class="text-danger">*</span></label>
+                            <label for="citizen_search" class="form-label">البحث عن المواطنين <span class="text-danger">*</span></label>
                             <div class="position-relative">
                                 <input type="text" class="form-control" id="citizen_search" 
-                                       placeholder="ابحث بالاسم أو الرقم الوطني..." autocomplete="off">
+                                       placeholder="ابحث بالاسم أو الرقم الوطني لإضافة مواطن..." autocomplete="off">
                                 <i class="fas fa-search position-absolute" style="top: 50%; left: 10px; transform: translateY(-50%); color: #6c757d;"></i>
                             </div>
                             
@@ -24,15 +24,17 @@
                             <div id="search_results" class="list-group mt-2" style="display: none; max-height: 200px; overflow-y: auto;">
                             </div>
                             
-                            <!-- الحقل المخفي للمواطن المختار -->
-                            <input type="hidden" id="citizen_id" name="citizen_id" required>
-                            
-                            <!-- عرض المواطن المختار -->
-                            <div id="selected_citizen" class="alert alert-success mt-2" style="display: none;">
-                                <i class="fas fa-user"></i> تم اختيار: <span id="selected_citizen_name"></span>
-                                <button type="button" class="btn btn-sm btn-outline-danger float-end" onclick="clearSelectedCitizen()">
-                                    <i class="fas fa-times"></i> إلغاء
-                                </button>
+                            <!-- قائمة المواطنين المختارين -->
+                            <div id="selected_citizens_container" class="mt-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <label class="form-label mb-0">المواطنون المختارون:</label>
+                                    <small class="text-muted">عدد المختارين: <span id="citizens_count">0</span></small>
+                                </div>
+                                <div id="selected_citizens_list" class="border rounded p-2" style="min-height: 60px; max-height: 200px; overflow-y: auto; background-color: #f8f9fa;">
+                                    <div id="no_citizens_message" class="text-muted text-center py-2">
+                                        <i class="fas fa-users"></i> لم يتم اختيار أي مواطن بعد
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div class="col-md-6 mb-3">
@@ -99,19 +101,19 @@ const citizens = [
     {% for citizen in citizens %}
     {
         id: {{ citizen[0] }}, 
-        name: "{{ citizen[1] }}", 
-        national_id: "{{ citizen[2] }}"
-    }{{ "," if not loop.last }}
+        name: {{ citizen[1]|tojson }}, 
+        national_id: {{ citizen[2]|tojson }}
+    }{% if not loop.last %},{% endif %}
     {% endfor %}
 ];
+
+// مصفوفة المواطنين المختارين
+let selectedCitizens = [];
 
 // وظائف البحث عن المواطنين
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('citizen_search');
     const searchResults = document.getElementById('search_results');
-    const citizenIdInput = document.getElementById('citizen_id');
-    const selectedCitizenDiv = document.getElementById('selected_citizen');
-    const selectedCitizenName = document.getElementById('selected_citizen_name');
     
     // البحث أثناء الكتابة
     searchInput.addEventListener('input', function() {
@@ -122,10 +124,11 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // فلترة النتائج
+        // فلترة النتائج (استبعاد المواطنين المختارين مسبقاً)
         const filteredCitizens = citizens.filter(citizen => 
-            citizen.name.toLowerCase().includes(query) || 
-            citizen.national_id.includes(query)
+            (citizen.name.toLowerCase().includes(query) || 
+            citizen.national_id.includes(query)) &&
+            !selectedCitizens.some(selected => selected.id === citizen.id)
         );
         
         // عرض النتائج
@@ -136,22 +139,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 item.className = 'list-group-item list-group-item-action';
                 item.href = '#';
                 item.innerHTML = `
-                    <div class="d-flex justify-content-between">
-                        <strong>${citizen.name}</strong>
-                        <span class="badge bg-primary">${citizen.national_id}</span>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${citizen.name}</strong>
+                            <br><small class="text-muted">${citizen.national_id}</small>
+                        </div>
+                        <span class="badge bg-success">
+                            <i class="fas fa-plus"></i> إضافة
+                        </span>
                     </div>
                 `;
                 
                 item.addEventListener('click', function(e) {
                     e.preventDefault();
-                    selectCitizen(citizen);
+                    addCitizen(citizen);
                 });
                 
                 searchResults.appendChild(item);
             });
             searchResults.style.display = 'block';
         } else {
-            searchResults.innerHTML = '<div class="list-group-item text-muted">لم يتم العثور على نتائج</div>';
+            searchResults.innerHTML = '<div class="list-group-item text-muted">لم يتم العثور على نتائج أو تم اختيار جميع النتائج</div>';
             searchResults.style.display = 'block';
         }
     });
@@ -163,50 +171,89 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    const materialSelect = document.getElementById('material_id');
+    // تمت إزالة وظيفة البحث في المواد لتجنب الأخطاء
     
-    // إضافة خاصية البحث للمواد
-    materialSelect.addEventListener('input', function() {
-        filterOptions(this);
-    });
-    
-    function filterOptions(selectElement) {
-        const filter = selectElement.value.toLowerCase();
-        const options = selectElement.querySelectorAll('option');
+    // التحقق من صحة النموذج قبل الإرسال
+    const form = document.querySelector('form');
+    form.addEventListener('submit', function(e) {
+        if (selectedCitizens.length === 0) {
+            e.preventDefault();
+            alert('يجب اختيار مواطن واحد على الأقل');
+            return false;
+        }
         
-        options.forEach(option => {
-            if (option.value === '') return;
-            const text = option.textContent.toLowerCase();
-            option.style.display = text.includes(filter) ? '' : 'none';
+        // إضافة المواطنين المختارين كحقول مخفية
+        selectedCitizens.forEach((citizen, index) => {
+            const hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = `citizen_ids[]`;
+            hiddenInput.value = citizen.id;
+            form.appendChild(hiddenInput);
         });
-    }
+    });
 });
 
-// اختيار مواطن
-function selectCitizen(citizen) {
+// إضافة مواطن للقائمة
+function addCitizen(citizen) {
+    // التحقق من عدم إضافة نفس المواطن مرتين
+    if (selectedCitizens.some(selected => selected.id === citizen.id)) {
+        return;
+    }
+    
+    selectedCitizens.push(citizen);
+    updateSelectedCitizensList();
+    
+    // مسح البحث
     const searchInput = document.getElementById('citizen_search');
     const searchResults = document.getElementById('search_results');
-    const citizenIdInput = document.getElementById('citizen_id');
-    const selectedCitizenDiv = document.getElementById('selected_citizen');
-    const selectedCitizenName = document.getElementById('selected_citizen_name');
-    
-    // تعيين القيم
-    citizenIdInput.value = citizen.id;
-    selectedCitizenName.textContent = `${citizen.name} (${citizen.national_id})`;
-    
-    // إخفاء البحث وعرض المختار
     searchInput.value = '';
     searchResults.style.display = 'none';
-    selectedCitizenDiv.style.display = 'block';
 }
 
-// إلغاء اختيار المواطن
-function clearSelectedCitizen() {
-    const citizenIdInput = document.getElementById('citizen_id');
-    const selectedCitizenDiv = document.getElementById('selected_citizen');
+// حذف مواطن من القائمة
+function removeCitizen(citizenId) {
+    selectedCitizens = selectedCitizens.filter(citizen => citizen.id !== citizenId);
+    updateSelectedCitizensList();
+}
+
+// تحديث قائمة المواطنين المختارين
+function updateSelectedCitizensList() {
+    const citizensList = document.getElementById('selected_citizens_list');
+    const citizensCount = document.getElementById('citizens_count');
     
-    citizenIdInput.value = '';
-    selectedCitizenDiv.style.display = 'none';
+    // تحديث العداد
+    citizensCount.textContent = selectedCitizens.length;
+    
+    // مسح القائمة الحالية
+    citizensList.innerHTML = '';
+    
+    if (selectedCitizens.length === 0) {
+        // إنشاء رسالة فارغة جديدة
+        const noMessage = document.createElement('div');
+        noMessage.className = 'text-muted text-center py-2';
+        noMessage.innerHTML = '<i class="fas fa-users"></i> لم يتم اختيار أي مواطن بعد';
+        citizensList.appendChild(noMessage);
+    } else {
+        // إنشاء بطاقات المواطنين
+        selectedCitizens.forEach(citizen => {
+            const citizenCard = document.createElement('div');
+            citizenCard.className = 'card mb-2';
+            citizenCard.innerHTML = `
+                <div class="card-body py-2 px-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong class="text-primary">${citizen.name}</strong>
+                            <br><small class="text-muted">${citizen.national_id}</small>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeCitizen(${citizen.id})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+            citizensList.appendChild(citizenCard);
+        });
+    }
 }
 </script>
 {% endblock %}
