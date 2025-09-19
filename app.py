@@ -20,8 +20,6 @@ import zipfile
 from pathlib import Path
 import arabic_reshaper
 from bidi.algorithm import get_display
-import uuid
-import secrets
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET")
@@ -115,16 +113,8 @@ def init_db():
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
         is_admin INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        session_token TEXT DEFAULT NULL
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
-    
-    # إضافة عمود session_token للجداول الموجودة (للتوافق مع النسخة القديمة)
-    try:
-        c.execute('ALTER TABLE users ADD COLUMN session_token TEXT DEFAULT NULL')
-    except sqlite3.OperationalError:
-        # العمود موجود بالفعل
-        pass
     
     # Citizens data table
     c.execute('''CREATE TABLE IF NOT EXISTS citizens (
@@ -143,7 +133,7 @@ def init_db():
     # Settings table
     c.execute('''CREATE TABLE IF NOT EXISTS settings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        site_name TEXT DEFAULT 'ادارة البيانات',
+        site_name TEXT DEFAULT 'هيئة فلسطين التنموية',
         site_status TEXT DEFAULT 'active',
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
@@ -232,7 +222,7 @@ def init_db():
     c.execute("SELECT * FROM settings")
     if not c.fetchone():
         c.execute("INSERT INTO settings (site_name, site_status) VALUES (?, ?)", 
-                 ('ادارة البيانات', 'active'))
+                 ('هيئة فلسطين التنموية', 'active'))
     
     # Create default permissions
     default_permissions = [
@@ -401,65 +391,6 @@ def inject_permission_functions():
         current_user_permissions=get_current_user_permissions
     )
 
-# دوال إدارة الجلسات وإبطالها تلقائياً
-def generate_session_token():
-    """توليد token فريد للجلسة"""
-    return secrets.token_urlsafe(32)
-
-def invalidate_user_session(user_id):
-    """إبطال جلسة مستخدم معين عن طريق تحديث session_token"""
-    conn = get_db_connection()
-    c = conn.cursor()
-    new_token = generate_session_token()
-    c.execute("UPDATE users SET session_token = ? WHERE id = ?", (new_token, user_id))
-    conn.commit()
-    conn.close()
-
-def validate_session():
-    """التحقق من صحة الجلسة الحالية"""
-    if 'user_id' not in session:
-        return False
-    
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("SELECT session_token FROM users WHERE id = ?", (session['user_id'],))
-    result = c.fetchone()
-    conn.close()
-    
-    if not result:
-        return False
-    
-    # إذا لم يكن هناك token في قاعدة البيانات (حساب قديم) والجلسة لا تحتوي على token، اقبل الجلسة
-    if result[0] is None and 'session_token' not in session:
-        return True
-    
-    # إذا كان هناك token في قاعدة البيانات، يجب أن يتطابق مع token الجلسة
-    if result[0] is not None:
-        return result[0] == session.get('session_token')
-    
-    # حالات أخرى (DB token is None لكن الجلسة تحتوي على token) - رفض
-    return False
-
-def check_session_validity():
-    """فحص صحة الجلسة وإخراج المستخدم إذا لم تعد صالحة"""
-    if 'user_id' in session:
-        if not validate_session():
-            session.clear()
-            flash('تم إنهاء جلستك لأسباب أمنية. يرجى تسجيل الدخول مرة أخرى.', 'warning')
-            return redirect(url_for('login'))
-    return None
-
-@app.before_request
-def before_request():
-    """فحص الجلسة قبل كل طلب"""
-    # استثناء صفحات معينة من فحص الجلسة
-    excluded_endpoints = ['login', 'static', 'index']
-    if request.endpoint and request.endpoint not in excluded_endpoints:
-        response = check_session_validity()
-        if response:
-            return response
-    return None
-
 # Routes
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -490,19 +421,9 @@ def login():
         conn.close()
         
         if user and check_password_hash(user[2], password):
-            # إنشاء session token جديد وحفظه في قاعدة البيانات
-            session_token = generate_session_token()
-            conn = get_db_connection()
-            c = conn.cursor()
-            c.execute("UPDATE users SET session_token = ? WHERE id = ?", (session_token, user[0]))
-            conn.commit()
-            conn.close()
-            
-            # حفظ بيانات الجلسة
             session['user_id'] = user[0]
             session['username'] = user[1]
             session['is_admin'] = user[3]
-            session['session_token'] = session_token
             return redirect(url_for('dashboard'))
         else:
             flash('اسم المستخدم أو كلمة المرور غير صحيحة', 'error')
@@ -810,9 +731,9 @@ def export():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
-    # Get all users if admin or has manage_users permission
+    # Get all users if admin
     users = []
-    if session.get('is_admin') or has_permission(session['user_id'], 'manage_users'):
+    if session.get('is_admin'):
         conn = get_db_connection()
         c = conn.cursor()
         c.execute("SELECT username FROM users ORDER BY username")
@@ -860,15 +781,15 @@ def export_advanced():
     
     params = []
     
-    # إذا لم يكن مدير أو لا يملك صلاحية إدارة المستخدمين، عرض البيانات المضافة من المستخدم فقط
-    if not (session.get('is_admin') or has_permission(session['user_id'], 'manage_users')):
+    # إذا لم يكن مدير، عرض البيانات المضافة من المستخدم فقط
+    if not session.get('is_admin'):
         if 'c.added_by' in query:
             query += " AND c.added_by = ?"
         else:
             query += " AND added_by = ?"
         params.append(session['username'])
     else:
-        # للمدير أو من لديه صلاحية إدارة المستخدمين: تطبيق فلتر المستخدمين
+        # للمدير: تطبيق فلتر المستخدمين
         if not all_users and user_filters:
             placeholders = ','.join(['?' for _ in user_filters])
             if 'c.added_by' in query:
@@ -1483,11 +1404,8 @@ def apply_default_permissions_all():
 
 @app.route('/delete_user/<int:user_id>', methods=['DELETE'])
 def delete_user(user_id):
-    if 'user_id' not in session or not (session.get('is_admin') or has_permission(session['user_id'], 'manage_users')):
+    if 'user_id' not in session or not session.get('is_admin'):
         return jsonify({'error': 'Unauthorized'}), 401
-    
-    # إخراج المستخدم من النظام تلقائياً قبل حذفه
-    invalidate_user_session(user_id)
     
     conn = get_db_connection()
     c = conn.cursor()
@@ -2141,9 +2059,6 @@ def edit_user(user_id):
             conn.commit()
             flash('تم تحديث بيانات المستخدم بنجاح', 'success')
             conn.close()
-            
-            # إخراج المستخدم من النظام تلقائياً بعد تعديل بياناته
-            invalidate_user_session(user_id)
             return redirect(url_for('admin'))
             
         except sqlite3.IntegrityError:
@@ -2558,40 +2473,23 @@ def distribute_material():
     c = conn.cursor()
     
     if request.method == 'POST':
-        # الحصول على قائمة المواطنين المختارين
-        citizen_ids = request.form.getlist('citizen_ids[]')
+        citizen_id = request.form['citizen_id']
         material_id = request.form['material_id']
         quantity = int(request.form.get('quantity', 1))
         notes = request.form.get('notes', '').strip()
         
-        # التحقق من اختيار مواطن واحد على الأقل
-        if not citizen_ids:
-            flash('يجب اختيار مواطن واحد على الأقل', 'error')
-            conn.close()
-            return redirect(url_for('distribute_material'))
-        
         try:
-            # إنشاء سجل توزيع منفصل لكل مواطن
-            for citizen_id in citizen_ids:
-                c.execute("""
-                    INSERT INTO material_distributions (citizen_id, material_id, quantity, distributed_by, notes)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (citizen_id, material_id, quantity, session['user_id'], notes))
-            
+            c.execute("""
+                INSERT INTO material_distributions (citizen_id, material_id, quantity, distributed_by, notes)
+                VALUES (?, ?, ?, ?, ?)
+            """, (citizen_id, material_id, quantity, session['user_id'], notes))
             conn.commit()
-            
-            # رسالة نجاح تتضمن عدد المواطنين
-            citizens_count = len(citizen_ids)
-            if citizens_count == 1:
-                flash('تم تسجيل توزيع المادة للمواطن بنجاح', 'success')
-            else:
-                flash(f'تم تسجيل توزيع المادة لـ {citizens_count} مواطن بنجاح', 'success')
-            
+            flash('تم تسجيل توزيع المادة بنجاح', 'success')
             conn.close()
             return redirect(url_for('distribute_material'))
             
         except Exception as e:
-            flash(f'خطأ في تسجيل التوزيع: {str(e)}', 'error')
+            flash('خطأ في تسجيل التوزيع', 'error')
             conn.close()
     
     # Get active materials
