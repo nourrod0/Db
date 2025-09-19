@@ -3,6 +3,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import os
+import secrets
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 import pandas as pd
@@ -20,9 +21,33 @@ import zipfile
 from pathlib import Path
 import arabic_reshaper
 from bidi.algorithm import get_display
+import uuid
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET")
+
+# Generate CSRF token for forms
+def generate_csrf_token():
+    if 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_hex(16)
+    return session['csrf_token']
+
+def validate_csrf_token(token):
+    return token and session.get('csrf_token') == token
+
+app.jinja_env.globals['csrf_token'] = generate_csrf_token
+
+# CSRF Protection decorator
+def csrf_protect(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if request.method == 'POST':
+            token = request.form.get('csrf_token')
+            if not validate_csrf_token(token):
+                flash('رمز الأمان غير صحيح. يرجى المحاولة مرة أخرى.', 'error')
+                return redirect(request.referrer or url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 # Timezone configuration for Palestine (GMT+3)
 app.config['LOCAL_TIMEZONE'] = os.getenv('APP_TIMEZONE', 'Asia/Gaza')
@@ -113,8 +138,16 @@ def init_db():
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
         is_admin INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        session_token TEXT DEFAULT NULL
     )''')
+    
+    # إضافة عمود session_token للجداول الموجودة (للتوافق مع النسخة القديمة)
+    try:
+        c.execute('ALTER TABLE users ADD COLUMN session_token TEXT DEFAULT NULL')
+    except sqlite3.OperationalError:
+        # العمود موجود بالفعل
+        pass
     
     # Citizens data table
     c.execute('''CREATE TABLE IF NOT EXISTS citizens (
@@ -133,7 +166,7 @@ def init_db():
     # Settings table
     c.execute('''CREATE TABLE IF NOT EXISTS settings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        site_name TEXT DEFAULT 'هيئة فلسطين التنموية',
+        site_name TEXT DEFAULT 'نظام البيانات الحديث',
         site_status TEXT DEFAULT 'active',
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
@@ -222,7 +255,7 @@ def init_db():
     c.execute("SELECT * FROM settings")
     if not c.fetchone():
         c.execute("INSERT INTO settings (site_name, site_status) VALUES (?, ?)", 
-                 ('هيئة فلسطين التنموية', 'active'))
+                 ('نظام البيانات الحديث', 'active'))
     
     # Create default permissions
     default_permissions = [
@@ -246,7 +279,12 @@ def init_db():
         ('delete_materials', 'حذف المواد', 'المواد'),
         ('distribute_materials', 'توزيع المواد', 'المواد'),
         ('view_material_distributions', 'عرض سجل توزيع المواد', 'المواد'),
-        ('manage_material_distributions', 'إدارة توزيع المواد', 'المواد')
+        ('manage_material_distributions', 'إدارة توزيع المواد', 'المواد'),
+        ('reset_citizens_data', 'تصفير بيانات المواطنين', 'تصفير قاعدة البيانات'),
+        ('reset_users_data', 'تصفير بيانات المستخدمين', 'تصفير قاعدة البيانات'),
+        ('reset_materials_data', 'تصفير بيانات المواد', 'تصفير قاعدة البيانات'),
+        ('reset_all_data', 'تصفير جميع البيانات (عدا الإدمن)', 'تصفير قاعدة البيانات'),
+        ('import_citizens_excel', 'استيراد بيانات المواطنين من Excel', 'استيراد البيانات')
     ]
     
     for perm_name, perm_desc, perm_category in default_permissions:
@@ -391,6 +429,65 @@ def inject_permission_functions():
         current_user_permissions=get_current_user_permissions
     )
 
+# دوال إدارة الجلسات وإبطالها تلقائياً
+def generate_session_token():
+    """توليد token فريد للجلسة"""
+    return secrets.token_urlsafe(32)
+
+def invalidate_user_session(user_id):
+    """إبطال جلسة مستخدم معين عن طريق تحديث session_token"""
+    conn = get_db_connection()
+    c = conn.cursor()
+    new_token = generate_session_token()
+    c.execute("UPDATE users SET session_token = ? WHERE id = ?", (new_token, user_id))
+    conn.commit()
+    conn.close()
+
+def validate_session():
+    """التحقق من صحة الجلسة الحالية"""
+    if 'user_id' not in session:
+        return False
+    
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT session_token FROM users WHERE id = ?", (session['user_id'],))
+    result = c.fetchone()
+    conn.close()
+    
+    if not result:
+        return False
+    
+    # إذا لم يكن هناك token في قاعدة البيانات (حساب قديم) والجلسة لا تحتوي على token، اقبل الجلسة
+    if result[0] is None and 'session_token' not in session:
+        return True
+    
+    # إذا كان هناك token في قاعدة البيانات، يجب أن يتطابق مع token الجلسة
+    if result[0] is not None:
+        return result[0] == session.get('session_token')
+    
+    # حالات أخرى (DB token is None لكن الجلسة تحتوي على token) - رفض
+    return False
+
+def check_session_validity():
+    """فحص صحة الجلسة وإخراج المستخدم إذا لم تعد صالحة"""
+    if 'user_id' in session:
+        if not validate_session():
+            session.clear()
+            flash('تم إنهاء جلستك لأسباب أمنية. يرجى تسجيل الدخول مرة أخرى.', 'warning')
+            return redirect(url_for('login'))
+    return None
+
+@app.before_request
+def before_request():
+    """فحص الجلسة قبل كل طلب"""
+    # استثناء صفحات معينة من فحص الجلسة
+    excluded_endpoints = ['login', 'static', 'index']
+    if request.endpoint and request.endpoint not in excluded_endpoints:
+        response = check_session_validity()
+        if response:
+            return response
+    return None
+
 # Routes
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -421,9 +518,19 @@ def login():
         conn.close()
         
         if user and check_password_hash(user[2], password):
+            # إنشاء session token جديد وحفظه في قاعدة البيانات
+            session_token = generate_session_token()
+            conn = get_db_connection()
+            c = conn.cursor()
+            c.execute("UPDATE users SET session_token = ? WHERE id = ?", (session_token, user[0]))
+            conn.commit()
+            conn.close()
+            
+            # حفظ بيانات الجلسة
             session['user_id'] = user[0]
             session['username'] = user[1]
             session['is_admin'] = user[3]
+            session['session_token'] = session_token
             return redirect(url_for('dashboard'))
         else:
             flash('اسم المستخدم أو كلمة المرور غير صحيحة', 'error')
@@ -731,9 +838,9 @@ def export():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
-    # Get all users if admin
+    # Get all users if admin or has manage_users permission
     users = []
-    if session.get('is_admin'):
+    if session.get('is_admin') or has_permission(session['user_id'], 'manage_users'):
         conn = get_db_connection()
         c = conn.cursor()
         c.execute("SELECT username FROM users ORDER BY username")
@@ -781,15 +888,15 @@ def export_advanced():
     
     params = []
     
-    # إذا لم يكن مدير، عرض البيانات المضافة من المستخدم فقط
-    if not session.get('is_admin'):
+    # إذا لم يكن مدير أو لا يملك صلاحية إدارة المستخدمين، عرض البيانات المضافة من المستخدم فقط
+    if not (session.get('is_admin') or has_permission(session['user_id'], 'manage_users')):
         if 'c.added_by' in query:
             query += " AND c.added_by = ?"
         else:
             query += " AND added_by = ?"
         params.append(session['username'])
     else:
-        # للمدير: تطبيق فلتر المستخدمين
+        # للمدير أو من لديه صلاحية إدارة المستخدمين: تطبيق فلتر المستخدمين
         if not all_users and user_filters:
             placeholders = ','.join(['?' for _ in user_filters])
             if 'c.added_by' in query:
@@ -1404,8 +1511,11 @@ def apply_default_permissions_all():
 
 @app.route('/delete_user/<int:user_id>', methods=['DELETE'])
 def delete_user(user_id):
-    if 'user_id' not in session or not session.get('is_admin'):
+    if 'user_id' not in session or not (session.get('is_admin') or has_permission(session['user_id'], 'manage_users')):
         return jsonify({'error': 'Unauthorized'}), 401
+    
+    # إخراج المستخدم من النظام تلقائياً قبل حذفه
+    invalidate_user_session(user_id)
     
     conn = get_db_connection()
     c = conn.cursor()
@@ -2059,6 +2169,9 @@ def edit_user(user_id):
             conn.commit()
             flash('تم تحديث بيانات المستخدم بنجاح', 'success')
             conn.close()
+            
+            # إخراج المستخدم من النظام تلقائياً بعد تعديل بياناته
+            invalidate_user_session(user_id)
             return redirect(url_for('admin'))
             
         except sqlite3.IntegrityError:
@@ -2473,23 +2586,40 @@ def distribute_material():
     c = conn.cursor()
     
     if request.method == 'POST':
-        citizen_id = request.form['citizen_id']
+        # الحصول على قائمة المواطنين المختارين
+        citizen_ids = request.form.getlist('citizen_ids[]')
         material_id = request.form['material_id']
         quantity = int(request.form.get('quantity', 1))
         notes = request.form.get('notes', '').strip()
         
+        # التحقق من اختيار مواطن واحد على الأقل
+        if not citizen_ids:
+            flash('يجب اختيار مواطن واحد على الأقل', 'error')
+            conn.close()
+            return redirect(url_for('distribute_material'))
+        
         try:
-            c.execute("""
-                INSERT INTO material_distributions (citizen_id, material_id, quantity, distributed_by, notes)
-                VALUES (?, ?, ?, ?, ?)
-            """, (citizen_id, material_id, quantity, session['user_id'], notes))
+            # إنشاء سجل توزيع منفصل لكل مواطن
+            for citizen_id in citizen_ids:
+                c.execute("""
+                    INSERT INTO material_distributions (citizen_id, material_id, quantity, distributed_by, notes)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (citizen_id, material_id, quantity, session['user_id'], notes))
+            
             conn.commit()
-            flash('تم تسجيل توزيع المادة بنجاح', 'success')
+            
+            # رسالة نجاح تتضمن عدد المواطنين
+            citizens_count = len(citizen_ids)
+            if citizens_count == 1:
+                flash('تم تسجيل توزيع المادة للمواطن بنجاح', 'success')
+            else:
+                flash(f'تم تسجيل توزيع المادة لـ {citizens_count} مواطن بنجاح', 'success')
+            
             conn.close()
             return redirect(url_for('distribute_material'))
             
         except Exception as e:
-            flash('خطأ في تسجيل التوزيع', 'error')
+            flash(f'خطأ في تسجيل التوزيع: {str(e)}', 'error')
             conn.close()
     
     # Get active materials
@@ -2852,6 +2982,350 @@ def export_pdf():
         as_attachment=True,
         download_name=f'citizens_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf',
         mimetype='application/pdf'
+    )
+
+# Database Reset Routes
+@app.route('/database_reset')
+@require_login
+def database_reset():
+    """صفحة إدارة تصفير قاعدة البيانات"""
+    # فحص الصلاحيات - يجب أن يكون لديه إحدى صلاحيات التصفير
+    reset_permissions = ['reset_citizens_data', 'reset_users_data', 'reset_materials_data', 'reset_all_data']
+    has_any_reset_permission = any(has_permission(session['user_id'], perm) for perm in reset_permissions)
+    
+    if not has_any_reset_permission:
+        flash('ليس لديك صلاحية للوصول لهذه الصفحة', 'error')
+        return redirect(url_for('dashboard'))
+    
+    return render_template('database_reset.html')
+
+@app.route('/reset_citizens_data', methods=['POST'])
+@require_permission('reset_citizens_data')
+@csrf_protect
+def reset_citizens_data():
+    """تصفير بيانات المواطنين"""
+    
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        
+        # حذف بيانات الحقول الديناميكية أولاً
+        c.execute("DELETE FROM dynamic_field_values")
+        # حذف توزيع المواد للمواطنين
+        c.execute("DELETE FROM material_distributions")
+        # حذف بيانات المواطنين
+        c.execute("DELETE FROM citizens")
+        
+        conn.commit()
+        conn.close()
+        
+        flash('تم تصفير بيانات المواطنين بنجاح', 'success')
+    except Exception as e:
+        flash(f'خطأ في تصفير بيانات المواطنين: {str(e)}', 'error')
+    
+    return redirect(url_for('database_reset'))
+
+@app.route('/reset_users_data', methods=['POST'])
+@require_permission('reset_users_data')
+@csrf_protect
+def reset_users_data():
+    """تصفير بيانات المستخدمين (عدا الإدمن الأساسي)"""
+    
+    try:
+        # التأكد من وجود إدمن أساسي قبل الحذف
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM users WHERE is_admin = 1")
+        admin_count = c.fetchone()[0]
+        if admin_count < 1:
+            flash('خطأ: لا يوجد مدير أساسي في النظام. العملية ملغاة لحماية النظام.', 'error')
+            conn.close()
+            return redirect(url_for('database_reset'))
+        
+        # حذف صلاحيات المستخدمين أولاً
+        c.execute("DELETE FROM user_permissions WHERE user_id NOT IN (SELECT id FROM users WHERE username = 'admin')")
+        # حذف المستخدمين (عدا الإدمن الأساسي)
+        c.execute("DELETE FROM users WHERE username != 'admin'")
+        
+        conn.commit()
+        conn.close()
+        
+        flash('تم تصفير بيانات المستخدمين بنجاح (تم الاحتفاظ بالإدمن الأساسي)', 'success')
+    except Exception as e:
+        flash(f'خطأ في تصفير بيانات المستخدمين: {str(e)}', 'error')
+    
+    return redirect(url_for('database_reset'))
+
+@app.route('/reset_materials_data', methods=['POST'])
+@require_permission('reset_materials_data')
+@csrf_protect
+def reset_materials_data():
+    """تصفير بيانات المواد"""
+    
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        
+        # حذف توزيع المواد أولاً
+        c.execute("DELETE FROM material_distributions")
+        # حذف المواد
+        c.execute("DELETE FROM materials")
+        
+        conn.commit()
+        conn.close()
+        
+        flash('تم تصفير بيانات المواد بنجاح', 'success')
+    except Exception as e:
+        flash(f'خطأ في تصفير بيانات المواد: {str(e)}', 'error')
+    
+    return redirect(url_for('database_reset'))
+
+@app.route('/reset_all_data', methods=['POST'])
+@require_permission('reset_all_data')
+@csrf_protect
+def reset_all_data():
+    """تصفير جميع البيانات عدا الإدمن الأساسي"""
+    
+    # إضافة تأكيد إضافي للعملية الخطيرة
+    confirmation = request.form.get('confirmation', '').strip()
+    if confirmation != 'تأكيد التصفير':
+        flash('يجب كتابة "تأكيد التصفير" بدقة لتنفيذ هذه العملية', 'error')
+        return redirect(url_for('database_reset'))
+    
+    try:
+        # التأكد من وجود إدمن أساسي قبل الحذف  
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM users WHERE is_admin = 1 AND username = 'admin'")
+        admin_count = c.fetchone()[0]
+        if admin_count < 1:
+            flash('خطأ: لا يوجد مدير أساسي في النظام. العملية ملغاة لحماية النظام.', 'error')
+            conn.close()
+            return redirect(url_for('database_reset'))
+        
+        # حذف البيانات بالترتيب الصحيح لتجنب مشاكل المفاتيح الخارجية
+        c.execute("DELETE FROM dynamic_field_values")
+        c.execute("DELETE FROM material_distributions")
+        c.execute("DELETE FROM citizens")
+        c.execute("DELETE FROM materials")
+        c.execute("DELETE FROM user_permissions WHERE user_id NOT IN (SELECT id FROM users WHERE username = 'admin')")
+        c.execute("DELETE FROM users WHERE username != 'admin'")
+        
+        conn.commit()
+        conn.close()
+        
+        flash('تم تصفير جميع البيانات بنجاح (تم الاحتفاظ بالإدمن الأساسي)', 'success')
+    except Exception as e:
+        flash(f'خطأ في تصفير البيانات: {str(e)}', 'error')
+    
+    return redirect(url_for('database_reset'))
+
+# Excel Import Routes
+@app.route('/import_citizens')
+@require_permission('import_citizens_excel')
+def import_citizens():
+    """صفحة استيراد بيانات المواطنين من Excel"""
+    # الحصول على قائمة المستخدمين لتحديد من سيُنسب إليه البيانات
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT id, username FROM users ORDER BY username")
+    users = c.fetchall()
+    conn.close()
+    
+    return render_template('import_citizens.html', users=users)
+
+@app.route('/import_citizens_process', methods=['POST'])
+@require_permission('import_citizens_excel')
+@csrf_protect
+def import_citizens_process():
+    """معالجة استيراد بيانات المواطنين من Excel"""
+    
+    if 'excel_file' not in request.files:
+        flash('لم يتم اختيار ملف Excel', 'error')
+        return redirect(url_for('import_citizens'))
+    
+    file = request.files['excel_file']
+    if file.filename == '':
+        flash('لم يتم اختيار ملف', 'error')
+        return redirect(url_for('import_citizens'))
+    
+    # التحقق من امتداد الملف ونوع المحتوى
+    if not file.filename.lower().endswith(('.xlsx', '.xls')):
+        flash('يجب أن يكون الملف من نوع Excel (.xlsx أو .xls)', 'error')
+        return redirect(url_for('import_citizens'))
+    
+    # التحقق من نوع المحتوى
+    allowed_mimes = [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  # .xlsx
+        'application/vnd.ms-excel'  # .xls
+    ]
+    if file.content_type not in allowed_mimes:
+        flash('نوع ملف غير مسموح. يجب أن يكون ملف Excel صحيح', 'error')
+        return redirect(url_for('import_citizens'))
+    
+    assigned_user_id = request.form.get('assigned_user')
+    if not assigned_user_id:
+        flash('يجب اختيار المستخدم الذي ستُنسب إليه البيانات', 'error')
+        return redirect(url_for('import_citizens'))
+    
+    try:
+        # التحقق من وجود المستخدم
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("SELECT username FROM users WHERE id = ?", (assigned_user_id,))
+        user = c.fetchone()
+        if not user:
+            flash('المستخدم المحدد غير موجود', 'error')
+            return redirect(url_for('import_citizens'))
+        
+        assigned_username = user[0]
+        
+        # قراءة ملف Excel مع حماية إضافية
+        try:
+            df = pd.read_excel(file, nrows=10000)  # حد أقصى 10000 سطر لحماية الذاكرة
+        except Exception as e:
+            flash(f'خطأ في قراءة ملف Excel: ملف تالف أو غير صحيح', 'error')
+            conn.close()
+            return redirect(url_for('import_citizens'))
+        
+        # التحقق من وجود الأعمدة المطلوبة
+        required_columns = ['الاسم الثلاثي', 'الرقم الوطني', 'الجوال', 'الحالة', 'أفراد الأسرة', 'العنوان']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        
+        if missing_columns:
+            flash(f'الأعمدة التالية مفقودة في ملف Excel: {", ".join(missing_columns)}', 'error')
+            return redirect(url_for('import_citizens'))
+        
+        # تنظيف البيانات وإضافتها
+        success_count = 0
+        error_count = 0
+        error_details = []
+        
+        for index, row in df.iterrows():
+            try:
+                # تنظيف البيانات
+                full_name = str(row['الاسم الثلاثي']).strip()
+                national_id = str(row['الرقم الوطني']).strip()
+                phone = str(row['الجوال']).strip()
+                status = str(row['الحالة']).strip()
+                family_members = int(float(row['أفراد الأسرة']))
+                address = str(row['العنوان']).strip()
+                notes = str(row.get('الملاحظات', '')).strip() if pd.notna(row.get('الملاحظات')) else ''
+                
+                # تنسيق تلقائي للأرقام
+                # إذا كان رقم الجوال 9 أرقام، أضف 0 في البداية ليصبح 10 أرقام
+                if len(phone) == 9 and phone.isdigit():
+                    phone = '0' + phone
+                
+                # إذا كان الرقم الوطني 10 أرقام، أضف 0 في البداية ليصبح 11 رقم
+                if len(national_id) == 10 and national_id.isdigit():
+                    national_id = '0' + national_id
+                
+                # التحقق من صحة البيانات
+                if len(national_id) != 11 or not national_id.isdigit():
+                    error_details.append(f'السطر {index + 2}: الرقم الوطني غير صحيح ({national_id})')
+                    error_count += 1
+                    continue
+                
+                if len(phone) != 10 or not phone.startswith('09') or not phone.isdigit():
+                    error_details.append(f'السطر {index + 2}: رقم الجوال غير صحيح ({phone})')
+                    error_count += 1
+                    continue
+                
+                # التحقق من عدم وجود الرقم الوطني مسبقاً
+                c.execute("SELECT id FROM citizens WHERE national_id = ?", (national_id,))
+                if c.fetchone():
+                    error_details.append(f'السطر {index + 2}: الرقم الوطني موجود مسبقاً ({national_id})')
+                    error_count += 1
+                    continue
+                
+                # إضافة البيانات
+                c.execute("""
+                    INSERT INTO citizens (full_name, national_id, phone, status, family_members, address, notes, added_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (full_name, national_id, phone, status, family_members, address, notes, assigned_username))
+                
+                success_count += 1
+                
+            except Exception as e:
+                error_details.append(f'السطر {index + 2}: خطأ في المعالجة - {str(e)}')
+                error_count += 1
+        
+        conn.commit()
+        conn.close()
+        
+        # عرض النتائج
+        if success_count > 0:
+            flash(f'تم استيراد {success_count} سجل بنجاح', 'success')
+        
+        if error_count > 0:
+            flash(f'فشل في استيراد {error_count} سجل', 'warning')
+            # عرض أول 5 أخطاء فقط لتجنب ازدحام الرسائل
+            for error in error_details[:5]:
+                flash(error, 'error')
+            if len(error_details) > 5:
+                flash(f'و {len(error_details) - 5} أخطاء أخرى...', 'error')
+        
+    except Exception as e:
+        flash(f'خطأ في قراءة ملف Excel: {str(e)}', 'error')
+        conn.close()
+    
+    return redirect(url_for('import_citizens'))
+
+@app.route('/download_excel_template')
+@require_permission('import_citizens_excel')
+def download_excel_template():
+    """تحميل نموذج Excel لاستيراد بيانات المواطنين"""
+    # إنشاء نموذج Excel
+    data = {
+        'الاسم الثلاثي': ['أحمد محمد علي', 'فاطمة أحمد محمد'],
+        'الرقم الوطني': ['12345678901', '12345678902'],
+        'الجوال': ['0912345678', '0987654321'],
+        'الحالة': ['ارملة', 'حالة صعبة'],
+        'أفراد الأسرة': [5, 3],
+        'العنوان': ['غزة - الشجاعية', 'خان يونس - المواصي'],
+        'الملاحظات': ['بحاجة لمساعدة عاجلة', 'حالة خاصة']
+    }
+    
+    df = pd.DataFrame(data)
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='نموذج البيانات', index=False)
+        
+        # تنسيق الملف
+        worksheet = writer.sheets['نموذج البيانات']
+        from openpyxl.styles import Font, PatternFill, Alignment
+        
+        # تنسيق العناوين
+        header_font = Font(bold=True, color='FFFFFF')
+        header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+        
+        for cell in worksheet[1]:
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center')
+        
+        # تعديل عرض الأعمدة
+        for column in worksheet.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 30)
+            worksheet.column_dimensions[column_letter].width = adjusted_width
+    
+    output.seek(0)
+    
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name='نموذج_استيراد_المواطنين.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
 
 if __name__ == '__main__':
