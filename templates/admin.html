@@ -81,6 +81,18 @@
             </div>
         </div>
     </div>
+    
+    {% if has_permission('manage_telegram_backup') %}
+    <div class="col-md-2 mb-3">
+        <div class="card text-center border-primary" style="border-color: #0088cc !important;">
+            <div class="card-body">
+                <i class="fab fa-telegram-plane fa-2x" style="color: #0088cc;"></i>
+                <h6 class="mt-2">نسخ تيليجرام</h6>
+                <a href="{{ url_for('telegram_backup_settings') }}" class="btn btn-sm" style="background-color: #0088cc; color: white;">إعدادات</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <!-- Site Settings -->

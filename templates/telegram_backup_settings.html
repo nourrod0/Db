@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}إعدادات النسخ الاحتياطي التلقائي عبر تيليجرام{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4">
+            <i class="fab fa-telegram-plane text-primary"></i>
+            إعدادات النسخ الاحتياطي التلقائي عبر تيليجرام
+        </h2>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-cog"></i> تكوين النسخ الاحتياطي التلقائي</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    
+                    <!-- Enable/Disable -->
+                    <div class="mb-4">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="is_enabled" name="is_enabled" 
+                                   {% if settings and settings[3] %}checked{% endif %}>
+                            <label class="form-check-label" for="is_enabled">
+                                <strong>تفعيل النسخ الاحتياطي التلقائي عبر تيليجرام</strong>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Bot Token -->
+                    <div class="mb-3">
+                        <label for="bot_token" class="form-label">
+                            <i class="fas fa-robot"></i> رمز البوت (Bot Token)
+                        </label>
+                        <input type="password" class="form-control" id="bot_token" name="bot_token" 
+                               value="{{ '***' if settings and settings[1] else '' }}" 
+                               placeholder="مثال: 123456789:ABCdef1234567890">
+                        <div class="form-text">
+                            يمكنك الحصول على رمز البوت من 
+                            <a href="https://t.me/BotFather" target="_blank" class="text-primary">
+                                @BotFather في تيليجرام
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- Chat ID -->
+                    <div class="mb-3">
+                        <label for="chat_id" class="form-label">
+                            <i class="fas fa-comment"></i> معرف المحادثة (Chat ID)
+                        </label>
+                        <input type="text" class="form-control" id="chat_id" name="chat_id" 
+                               value="{{ settings[2] if settings and settings[2] else '' }}" 
+                               placeholder="مثال: -1001234567890 أو 123456789">
+                        <div class="form-text">
+                            للحصول على معرف المحادثة، أرسل /start للبوت أو استخدم 
+                            <a href="https://t.me/userinfobot" target="_blank" class="text-primary">
+                                @userinfobot
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- Backup Triggers -->
+                    <div class="mb-4">
+                        <label class="form-label">
+                            <i class="fas fa-list-check"></i> متى يتم إرسال النسخ الاحتياطية؟
+                        </label>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="backup_on_citizen_changes" 
+                                           name="backup_on_citizen_changes" 
+                                           {% if not settings or settings[4] %}checked{% endif %}>
+                                    <label class="form-check-label" for="backup_on_citizen_changes">
+                                        عند تغيير بيانات المواطنين
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="backup_on_user_changes" 
+                                           name="backup_on_user_changes" 
+                                           {% if not settings or settings[5] %}checked{% endif %}>
+                                    <label class="form-check-label" for="backup_on_user_changes">
+                                        عند تغيير بيانات المستخدمين
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="backup_on_material_changes" 
+                                           name="backup_on_material_changes" 
+                                           {% if not settings or settings[6] %}checked{% endif %}>
+                                    <label class="form-check-label" for="backup_on_material_changes">
+                                        عند تغيير بيانات المواد
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="backup_on_settings_changes" 
+                                           name="backup_on_settings_changes" 
+                                           {% if not settings or settings[7] %}checked{% endif %}>
+                                    <label class="form-check-label" for="backup_on_settings_changes">
+                                        عند تغيير الإعدادات
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="backup_on_permission_changes" 
+                                           name="backup_on_permission_changes" 
+                                           {% if not settings or settings[8] %}checked{% endif %}>
+                                    <label class="form-check-label" for="backup_on_permission_changes">
+                                        عند تغيير الصلاحيات
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- File Name Pattern -->
+                    <div class="mb-3">
+                        <label for="backup_file_name_pattern" class="form-label">
+                            <i class="fas fa-file-signature"></i> نمط اسم الملف
+                        </label>
+                        <input type="text" class="form-control" id="backup_file_name_pattern" 
+                               name="backup_file_name_pattern" 
+                               value="{{ settings[10] if settings and settings[10] else 'backup_{timestamp}' }}">
+                        <div class="form-text">
+                            استخدم {timestamp} للوقت الحالي. مثال: backup_{timestamp} سينتج backup_20231219_143052
+                        </div>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> حفظ الإعدادات
+                        </button>
+                        <a href="{{ url_for('admin') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> العودة للوحة الإدارة
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <!-- Status Card -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h6><i class="fas fa-info-circle"></i> حالة النظام</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-2">
+                    <span class="badge {% if settings and settings[3] %}bg-success{% else %}bg-secondary{% endif %} me-2">
+                        {% if settings and settings[3] %}مفعل{% else %}معطل{% endif %}
+                    </span>
+                    <small class="text-muted">النسخ الاحتياطي التلقائي</small>
+                </div>
+                
+                {% if settings and settings[9] %}
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-clock text-muted me-2"></i>
+                    <small class="text-muted">
+                        آخر نسخة: {{ settings[9] | local_dt }}
+                    </small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Instructions Card -->
+        <div class="card">
+            <div class="card-header">
+                <h6><i class="fas fa-question-circle"></i> تعليمات الإعداد</h6>
+            </div>
+            <div class="card-body">
+                <ol class="small">
+                    <li>أنشئ بوت جديد عبر <strong>@BotFather</strong> في تيليجرام</li>
+                    <li>احفظ رمز البوت (Bot Token) الذي تحصل عليه</li>
+                    <li>أضف البوت إلى المحادثة أو القناة المطلوبة</li>
+                    <li>احصل على معرف المحادثة (Chat ID) باستخدام <strong>@userinfobot</strong></li>
+                    <li>أدخل البيانات في الحقول أعلاه</li>
+                    <li>فعّل النظام واختر متى تريد إرسال النسخ</li>
+                    <li>احفظ الإعدادات لاختبار الاتصال</li>
+                </ol>
+                
+                <div class="alert alert-info mt-3">
+                    <small>
+                        <i class="fas fa-lightbulb"></i>
+                        <strong>نصيحة:</strong> للمجموعات والقنوات، يبدأ معرف المحادثة بعلامة ناقص (-)
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Manual Test Button -->
+{% if settings and settings[1] and settings[2] %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6><i class="fas fa-vial"></i> اختبار النظام</h6>
+            </div>
+            <div class="card-body">
+                <p class="mb-3">يمكنك اختبار إرسال نسخة احتياطية يدوياً للتأكد من صحة الإعدادات:</p>
+                <button type="button" class="btn btn-info" onclick="testTelegramBackup()">
+                    <i class="fas fa-paper-plane"></i> إرسال نسخة اختبار
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function testTelegramBackup() {
+    if (confirm('هل تريد إرسال نسخة احتياطية اختبار إلى تيليجرام؟')) {
+        let form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/test_telegram_backup';
+        let csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrf_token';
+        csrfInput.value = '{{ csrf_token() }}';
+        form.appendChild(csrfInput);
+        document.body.appendChild(form);
+        
+        fetch('/test_telegram_backup', {
+            method: 'POST',
+            body: new FormData(form)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('✅ تم إرسال النسخة الاختبارية بنجاح!');
+            } else {
+                alert('❌ فشل في إرسال النسخة: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('❌ حدث خطأ: ' + error);
+        });
+    }
+}
+</script>
+{% endif %}
+
+{% endblock %}
