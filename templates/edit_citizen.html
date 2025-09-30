@@ -7,8 +7,25 @@
 <div class="row justify-content-center">
     <div class="col-md-8">
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h4><i class="fas fa-user-edit"></i> تعديل بيانات المواطن</h4>
+                <!-- عرض الصورة الشخصية الحالية -->
+                <div class="text-center">
+                    {% if citizen[11] %}
+                        <img src="{{ citizen[11] }}" 
+                             alt="الصورة الشخصية" 
+                             class="rounded border shadow-sm"
+                             style="width: 2cm; height: 3cm; object-fit: cover;">
+                    {% else %}
+                        <div class="d-flex align-items-center justify-content-center border rounded shadow-sm" 
+                             style="width: 2cm; height: 3cm; background-color: #f8f9fa; font-size: 0.8rem;">
+                            <div class="text-center text-muted">
+                                <i class="fas fa-user mb-1" style="font-size: 1rem;"></i>
+                                <div style="font-size: 0.6rem;">الصورة الشخصية</div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
             </div>
             <div class="card-body">
                 <form method="POST">
@@ -37,12 +54,9 @@
                             <label for="status" class="form-label">الحالة *</label>
                             <select class="form-control" id="status" name="status" required>
                                 <option value="">اختر الحالة</option>
-                                <option value="ارملة" {{ 'selected' if citizen[4] == 'ارملة' }}>أرملة</option>
-                                <option value="مطلقة" {{ 'selected' if citizen[4] == 'مطلقة' }}>مطلقة</option>
-                                <option value="اعاقة" {{ 'selected' if citizen[4] == 'اعاقة' }}>إعاقة</option>
-                                <option value="كبير بالعمر" {{ 'selected' if citizen[4] == 'كبير بالعمر' }}>كبير بالعمر</option>
-                                <option value="حالة صعبة" {{ 'selected' if citizen[4] == 'حالة صعبة' }}>حالة صعبة</option>
-                                <option value="مرض تلاسيميا" {{ 'selected' if citizen[4] == 'مرض تلاسيميا' }}>مرض تلاسيميا</option>
+                                {% for status in statuses %}
+                                <option value="{{ status[0] }}" {{ 'selected' if citizen[4] == status[0] }}>{{ status[0] }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                     </div>
@@ -61,6 +75,13 @@
                     <div class="mb-3">
                         <label for="notes" class="form-label">ملاحظات</label>
                         <textarea class="form-control" id="notes" name="notes" rows="2">{{ citizen[7] or '' }}</textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="photo" class="form-label">رابط الصورة الشخصية (اختياري)</label>
+                        <input type="url" class="form-control" id="photo" name="photo" 
+                               value="{{ citizen[11] or '' }}" placeholder="https://example.com/image.jpg">
+                        <div class="form-text">أدخل رابط الصورة الشخصية من الإنترنت</div>
                     </div>
                     
                     <!-- خيار نسب المواطن لمستخدم محدد - للمديرين فقط -->

@@ -39,12 +39,9 @@
                             <label for="status" class="form-label">الحالة *</label>
                             <select class="form-control" id="status" name="status" required>
                                 <option value="">اختر الحالة</option>
-                                <option value="ارملة" {% if form_data and form_data.status == 'ارملة' %}selected{% endif %}>أرملة</option>
-                                <option value="مطلقة" {% if form_data and form_data.status == 'مطلقة' %}selected{% endif %}>مطلقة</option>
-                                <option value="اعاقة" {% if form_data and form_data.status == 'اعاقة' %}selected{% endif %}>إعاقة</option>
-                                <option value="كبير بالعمر" {% if form_data and form_data.status == 'كبير بالعمر' %}selected{% endif %}>كبير بالعمر</option>
-                                <option value="حالة صعبة" {% if form_data and form_data.status == 'حالة صعبة' %}selected{% endif %}>حالة صعبة</option>
-                                <option value="مرض تلاسيميا" {% if form_data and form_data.status == 'مرض تلاسيميا' %}selected{% endif %}>مرض تلاسيميا</option>
+                                {% for status in statuses %}
+                                <option value="{{ status[0] }}" {% if form_data and form_data.status == status[0] %}selected{% endif %}>{{ status[0] }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                     </div>
@@ -64,6 +61,12 @@
                     <div class="mb-3">
                         <label for="notes" class="form-label">ملاحظات</label>
                         <textarea class="form-control" id="notes" name="notes" rows="2">{{ form_data.notes if form_data else '' }}</textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="photo" class="form-label">رابط الصورة الشخصية (اختياري)</label>
+                        <input type="url" class="form-control" id="photo" name="photo" placeholder="https://example.com/image.jpg">
+                        <div class="form-text">أدخل رابط الصورة الشخصية من الإنترنت</div>
                     </div>
                     
                     <div class="d-flex justify-content-between">

@@ -130,7 +130,7 @@
                 </div>
                 {% endif %}
                 
-                {% if has_permission('manage_users') or has_permission('manage_settings') or has_permission('manage_permissions') %}
+                {% if has_permission('manage_users') or has_permission('manage_settings') or has_permission('manage_permissions') or has_permission('manage_statuses') %}
                 <div class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                         <i class="fas fa-cogs"></i> الإدارة
@@ -139,6 +139,11 @@
                         {% if has_permission('manage_users') %}
                         <li><a class="dropdown-item" href="{{ url_for('admin') }}">
                             <i class="fas fa-users-cog"></i> إدارة المستخدمين
+                        </a></li>
+                        {% endif %}
+                        {% if has_permission('manage_statuses') %}
+                        <li><a class="dropdown-item" href="{{ url_for('manage_statuses') }}">
+                            <i class="fas fa-list"></i> إدارة حالات المواطنين
                         </a></li>
                         {% endif %}
                         {% if has_permission('manage_settings') %}

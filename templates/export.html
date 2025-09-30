@@ -27,42 +27,14 @@
                                                 جميع الحالات
                                             </label>
                                         </div>
+                                        {% for status in statuses %}
                                         <div class="form-check">
-                                            <input class="form-check-input status-filter" type="checkbox" value="ارملة" id="widow" name="status">
-                                            <label class="form-check-label" for="widow">
-                                                أرملة
+                                            <input class="form-check-input status-filter" type="checkbox" value="{{ status[0] }}" id="status_{{ loop.index }}" name="status">
+                                            <label class="form-check-label" for="status_{{ loop.index }}">
+                                                {{ status[0] }}
                                             </label>
                                         </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input status-filter" type="checkbox" value="مطلقة" id="divorced" name="status">
-                                            <label class="form-check-label" for="divorced">
-                                                مطلقة
-                                            </label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input status-filter" type="checkbox" value="اعاقة" id="disability" name="status">
-                                            <label class="form-check-label" for="disability">
-                                                إعاقة
-                                            </label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input status-filter" type="checkbox" value="كبير بالعمر" id="elderly" name="status">
-                                            <label class="form-check-label" for="elderly">
-                                                كبير بالعمر
-                                            </label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input status-filter" type="checkbox" value="حالة صعبة" id="difficult" name="status">
-                                            <label class="form-check-label" for="difficult">
-                                                حالة صعبة
-                                            </label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input status-filter" type="checkbox" value="مرض تلاسيميا" id="thalassemia" name="status">
-                                            <label class="form-check-label" for="thalassemia">
-                                                مرض تلاسيميا
-                                            </label>
-                                        </div>
+                                        {% endfor %}
                                     </div>
                                     
                                     <div class="mb-3">

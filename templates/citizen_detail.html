@@ -1,0 +1,483 @@
+{% extends "base.html" %}
+
+{% block title %}تفاصيل المواطن{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-user"></i> تفاصيل المواطن</h5>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-primary" onclick="printCitizenDetails()">
+                        <i class="fas fa-print"></i> طباعة
+                    </button>
+                    <a href="{{ url_for('view_citizens') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> رجوع
+                    </a>
+                </div>
+            </div>
+            <div class="card-body" id="citizen-details-content">
+                <!-- Normal view for screen -->
+                <div class="row screen-only">
+                    <div class="col-md-8">
+                        <div class="row mb-3">
+                            <div class="col-sm-4"><strong>الاسم الثلاثي:</strong></div>
+                            <div class="col-sm-8">{{ citizen[1] }}</div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-sm-4"><strong>الرقم الوطني:</strong></div>
+                            <div class="col-sm-8">{{ citizen[2] }}</div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-sm-4"><strong>رقم الجوال:</strong></div>
+                            <div class="col-sm-8">{{ citizen[3] }}</div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-sm-4"><strong>الحالة:</strong></div>
+                            <div class="col-sm-8">
+                                <span class="badge bg-info">{{ citizen[4] }}</span>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-sm-4"><strong>عدد أفراد الأسرة:</strong></div>
+                            <div class="col-sm-8">{{ citizen[5] }}</div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-sm-4"><strong>العنوان:</strong></div>
+                            <div class="col-sm-8">{{ citizen[6] }}</div>
+                        </div>
+                        {% if citizen[7] %}
+                        <div class="row mb-3">
+                            <div class="col-sm-4"><strong>ملاحظات:</strong></div>
+                            <div class="col-sm-8">{{ citizen[7] }}</div>
+                        </div>
+                        {% endif %}
+                        <div class="row mb-3">
+                            <div class="col-sm-4"><strong>أضيف بواسطة:</strong></div>
+                            <div class="col-sm-8">{{ citizen[8] }}</div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-sm-4"><strong>تاريخ الإضافة:</strong></div>
+                            <div class="col-sm-8">{{ citizen[10] }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            {% if citizen[11] %}
+                                <div class="mb-3">
+                                    <img src="{{ citizen[11] }}" 
+                                         alt="الصورة الشخصية" 
+                                         class="rounded border shadow-sm"
+                                         style="width: 2cm; height: 3cm; object-fit: cover;">
+                                </div>
+                            {% else %}
+                                <div class="mb-3 d-flex align-items-center justify-content-center border rounded shadow-sm" 
+                                     style="width: 2cm; height: 3cm; background-color: #f8f9fa; font-size: 0.8rem;">
+                                    <div class="text-center text-muted">
+                                        <i class="fas fa-user mb-1" style="font-size: 1rem;"></i>
+                                        <div style="font-size: 0.6rem;">الصورة الشخصية</div>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Print Layout -->
+                <div class="print-only">
+                    <!-- Header -->
+                    <div class="print-header">
+                        <h1>بطاقة مواطن</h1>
+                        <div class="subtitle">نظام إدارة بيانات المواطنين</div>
+                    </div>
+
+                    <!-- Photo Section -->
+                    <div class="print-photo-section">
+                        <div class="print-photo-container">
+                            {% if citizen[11] %}
+                                <img src="{{ citizen[11] }}" alt="الصورة الشخصية" class="print-photo">
+                            {% else %}
+                                <div class="print-photo-placeholder">
+                                    <div class="text-center">
+                                        <i class="fas fa-user" style="font-size: 2rem; color: #42a5f5;"></i>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Contact Info -->
+                    <div class="print-contact-info">
+                        <div class="print-contact-item">
+                            <i class="fas fa-phone"></i>
+                            <span>{{ citizen[3] }}</span>
+                        </div>
+                        <div class="print-contact-item">
+                            <i class="fas fa-id-card"></i>
+                            <span>{{ citizen[2] }}</span>
+                        </div>
+                        <div class="print-contact-item">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <span>{{ citizen[6] }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Main Information Section -->
+                    <div class="print-sections">
+                        <div class="print-section">
+                            <div class="print-section-title">البيانات الأساسية</div>
+                            <div class="print-info-grid">
+                                <div class="print-info-item">
+                                    <div class="print-info-label">الاسم الثلاثي</div>
+                                    <div class="print-info-value">{{ citizen[1] }}</div>
+                                </div>
+                                <div class="print-info-item">
+                                    <div class="print-info-label">الحالة</div>
+                                    <div class="print-info-value">
+                                        <span class="print-status-badge">{{ citizen[4] }}</span>
+                                    </div>
+                                </div>
+                                <div class="print-info-item">
+                                    <div class="print-info-label">عدد أفراد الأسرة</div>
+                                    <div class="print-info-value">{{ citizen[5] }} أفراد</div>
+                                </div>
+                                <div class="print-info-item">
+                                    <div class="print-info-label">تاريخ الإضافة</div>
+                                    <div class="print-info-value">{{ citizen[10] }}</div>
+                                </div>
+                                {% if citizen[7] %}
+                                <div class="print-notes-section">
+                                    <div class="print-info-label">ملاحظات إضافية</div>
+                                    <div class="print-info-value">{{ citizen[7] }}</div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="print-footer">
+                        تم إنشاء هذه البطاقة بواسطة نظام إدارة بيانات المواطنين • {{ citizen[8] }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Material Distributions -->
+        <div class="card mt-4" id="distributions-section">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6><i class="fas fa-list"></i> سجل توزيع المواد</h6>
+                {% if distributions %}
+                <div class="btn-group">
+                    <a href="{{ url_for('export_citizen_materials', citizen_id=citizen[0]) }}" 
+                       class="btn btn-sm btn-primary">
+                        <i class="fas fa-file-excel"></i> تصدير إلى Excel
+                    </a>
+                    <a href="{{ url_for('print_citizen_distributions', citizen_id=citizen[0]) }}" 
+                       class="btn btn-sm btn-success" target="_blank">
+                        <i class="fas fa-print"></i> طباعة السجل
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if distributions %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>المادة</th>
+                                    <th>الكمية</th>
+                                    <th>الوحدة</th>
+                                    <th>تاريخ التوزيع</th>
+                                    <th>الموزع</th>
+                                    <th>ملاحظات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for dist in distributions %}
+                                <tr>
+                                    <td>{{ dist[0] }}</td>
+                                    <td>{{ dist[1] }}</td>
+                                    <td>{{ dist[2] }}</td>
+                                    <td>{{ dist[3] }}</td>
+                                    <td>{{ dist[4] }}</td>
+                                    <td>{{ dist[5] or '-' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-inbox fa-2x mb-2"></i>
+                        <p>لا توجد سجلات توزيع لهذا المواطن</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6><i class="fas fa-info-circle"></i> إرشادات</h6>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <strong>ملاحظة:</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>يمكنك طباعة تفاصيل المواطن بتنسيق السيرة الذاتية</li>
+                        <li>سجل التوزيع لن يتم طباعته مع زر الطباعة</li>
+                        <li>الصورة الشخصية ستظهر في أعلى يسار التفاصيل</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Print Styles -->
+<style media="print">
+    @page {
+        size: A4;
+        margin: 1.5cm;
+        background: white !important;
+    }
+    
+    * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        background: white !important;
+    }
+    
+    body * {
+        visibility: hidden;
+    }
+    
+    #citizen-details-content, #citizen-details-content * {
+        visibility: visible;
+    }
+    
+    #citizen-details-content {
+        position: static;
+        width: 100%;
+        background: white !important;
+        padding: 0;
+        font-family: 'Arial', sans-serif;
+        color: #1a1a1a;
+        page-break-inside: avoid;
+    }
+    
+    .print-header {
+        background: white !important;
+        border-top: 2px solid #333;
+        border-bottom: 1px solid #333;
+        color: #333 !important;
+        text-align: center;
+        padding: 20px 20px;
+        margin-bottom: 0;
+        border-radius: 0;
+    }
+    
+    .print-header h1 {
+        font-size: 2rem;
+        font-weight: bold;
+        margin: 0;
+        text-shadow: none;
+        letter-spacing: 1px;
+        color: #333 !important;
+    }
+    
+    .print-header .subtitle {
+        font-size: 1.1rem;
+        margin-top: 10px;
+        opacity: 0.9;
+        font-weight: 300;
+    }
+    
+    .print-photo-section {
+        text-align: center;
+        padding: 30px 20px;
+        background: white;
+        margin: 0;
+    }
+    
+    .print-photo-container {
+        display: inline-block;
+        position: relative;
+        margin-bottom: 15px;
+    }
+    
+    .print-photo {
+        width: 100px !important;
+        height: 100px !important;
+        border-radius: 50% !important;
+        border: 2px solid #333 !important;
+        object-fit: cover !important;
+        box-shadow: none !important;
+    }
+    
+    .print-photo-placeholder {
+        width: 100px !important;
+        height: 100px !important;
+        border-radius: 50% !important;
+        border: 2px solid #333 !important;
+        background: white !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        box-shadow: none !important;
+    }
+    
+    .print-contact-info {
+        background: white;
+        padding: 15px;
+        margin: 0;
+        border-top: 1px solid #333;
+    }
+    
+    .print-contact-item {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 15px;
+        font-size: 1rem;
+        color: #1a1a1a;
+    }
+    
+    .print-contact-item i {
+        color: #333;
+        width: 20px;
+        margin-left: 10px;
+        font-size: 1rem;
+    }
+    
+    .print-sections {
+        background: white;
+        margin: 20px 0 0 0;
+        padding: 0;
+    }
+    
+    .print-section {
+        margin-bottom: 20px;
+        border-top: 1px solid #333;
+        background: white;
+        padding: 15px 20px;
+    }
+    
+    .print-section-title {
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: #333;
+        text-align: center;
+        margin-bottom: 15px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #ddd;
+        position: relative;
+    }
+    
+    .print-section-title::after {
+        display: none;
+    }
+    
+    .print-info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+        margin-top: 15px;
+    }
+    
+    .print-info-item {
+        background: white;
+        padding: 8px 10px;
+        border-radius: 4px;
+        border-right: 2px solid #333;
+        border: 1px solid #ddd;
+    }
+    
+    .print-info-label {
+        font-weight: bold;
+        color: #333;
+        font-size: 0.85rem;
+        margin-bottom: 3px;
+    }
+    
+    .print-info-value {
+        color: #1a1a1a;
+        font-size: 1rem;
+    }
+    
+    .print-status-badge {
+        background: white;
+        color: #333;
+        padding: 2px 8px;
+        border: 1px solid #333;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        display: inline-block;
+        box-shadow: none;
+    }
+    
+    .print-notes-section {
+        grid-column: 1 / -1;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 10px;
+        margin-top: 8px;
+    }
+    
+    .print-footer {
+        background: white;
+        color: #333;
+        text-align: center;
+        padding: 10px;
+        margin-top: 15px;
+        font-size: 0.8rem;
+        border-top: 1px solid #333;
+    }
+    
+    /* Hide elements not needed for print */
+    .btn, .card-header, #distributions-section, .col-md-4:last-child {
+        display: none !important;
+    }
+    
+    .card {
+        border: none !important;
+        box-shadow: none !important;
+    }
+    
+    .card-body {
+        padding: 0 !important;
+    }
+    
+    .row.mb-3 {
+        display: none !important;
+    }
+    
+    .screen-only {
+        display: none !important;
+    }
+    
+    .print-only {
+        display: block !important;
+    }
+</style>
+
+<!-- Screen Styles -->
+<style media="screen">
+    .print-only {
+        display: none !important;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function printCitizenDetails() {
+    window.print();
+}
+</script>
+{% endblock %}

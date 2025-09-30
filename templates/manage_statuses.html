@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}إدارة حالات المواطنين{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>إدارة حالات المواطنين</h2>
+            <div>
+                {% if has_permission('manage_statuses') %}
+                <a href="{{ url_for('add_status') }}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> إضافة حالة جديدة
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-list"></i> قائمة الحالات</h5>
+            </div>
+            <div class="card-body">
+                {% if statuses %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>رقم الحالة</th>
+                                <th>اسم الحالة</th>
+                                <th>الوصف</th>
+                                <th>الترتيب</th>
+                                <th>الحالة</th>
+                                <th>أضيفت بواسطة</th>
+                                <th>تاريخ الإضافة</th>
+                                <th>إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for status in statuses %}
+                            <tr>
+                                <td>{{ status[0] }}</td>
+                                <td><strong>{{ status[1] }}</strong></td>
+                                <td>{{ status[2] or '-' }}</td>
+                                <td><span class="badge bg-secondary">{{ status[4] }}</span></td>
+                                <td>
+                                    <span class="badge {{ 'bg-success' if status[3] else 'bg-warning' }}">
+                                        {{ 'نشطة' if status[3] else 'معطلة' }}
+                                    </span>
+                                </td>
+                                <td>{{ status[5] }}</td>
+                                <td>{{ status[6]|local_dt if status[6] else '-' }}</td>
+                                <td>
+                                    {% if has_permission('manage_statuses') %}
+                                    <a href="{{ url_for('edit_status', status_id=status[0]) }}" class="btn btn-sm btn-outline-primary me-1">
+                                        <i class="fas fa-edit"></i> تعديل
+                                    </a>
+                                    <a href="{{ url_for('delete_status', status_id=status[0]) }}" 
+                                       class="btn btn-sm btn-outline-danger"
+                                       onclick="return confirm('هل أنت متأكد من حذف هذه الحالة؟ هذا الإجراء لا يمكن التراجع عنه.')">
+                                        <i class="fas fa-trash"></i> حذف
+                                    </a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-list fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">لا توجد حالات مسجلة</h4>
+                    <p class="text-muted">ابدأ بإضافة الحالات الأولى إلى النظام</p>
+                    {% if has_permission('manage_statuses') %}
+                    <a href="{{ url_for('add_status') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> إضافة حالة جديدة
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -53,6 +53,10 @@
                             <label for="quantity" class="form-label">الكمية <span class="text-danger">*</span></label>
                             <input type="number" class="form-control" id="quantity" name="quantity" value="1" min="1" required>
                         </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="distribution_date" class="form-label">تاريخ ووقت التوزيع <span class="text-danger">*</span></label>
+                            <input type="datetime-local" class="form-control" id="distribution_date" name="distribution_date" required>
+                        </div>
                     </div>
                     
                     <div class="mb-3">
@@ -85,7 +89,7 @@
                         <li>تأكد من هوية المواطن قبل التوزيع</li>
                         <li>تحقق من الكمية المناسبة</li>
                         <li>يمكن إضافة ملاحظات للتوضيح</li>
-                        <li>سيتم حفظ تاريخ ووقت التوزيع تلقائياً</li>
+                        <li>يجب تحديد تاريخ ووقت التوزيع يدوياً</li>
                     </ul>
                 </div>
             </div>
@@ -112,6 +116,15 @@ let selectedCitizens = [];
 
 // وظائف البحث عن المواطنين
 document.addEventListener('DOMContentLoaded', function() {
+    // تعيين التاريخ والوقت الحالي كقيمة افتراضية
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const dateTimeLocal = `${year}-${month}-${day}T${hours}:${minutes}`;
+    document.getElementById('distribution_date').value = dateTimeLocal;
     const searchInput = document.getElementById('citizen_search');
     const searchResults = document.getElementById('search_results');
     
