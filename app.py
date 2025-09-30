@@ -1,5 +1,6 @@
 
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file
+from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import os
@@ -172,6 +173,13 @@ def init_db():
         # العمود موجود بالفعل
         pass
     
+    # إضافة عمود photo للجداول الموجودة
+    try:
+        c.execute('ALTER TABLE citizens ADD COLUMN photo TEXT DEFAULT NULL')
+    except sqlite3.OperationalError:
+        # العمود موجود بالفعل
+        pass
+    
     # Settings table
     c.execute('''CREATE TABLE IF NOT EXISTS settings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -253,6 +261,18 @@ def init_db():
         FOREIGN KEY (distributed_by) REFERENCES users(id) ON DELETE CASCADE
     )''')
     
+    # Statuses table لتخزين حالات المواطنين
+    c.execute('''CREATE TABLE IF NOT EXISTS statuses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        description TEXT,
+        is_active INTEGER DEFAULT 1,
+        display_order INTEGER DEFAULT 0,
+        created_by INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+    )''')
+    
     # Telegram backup settings table لإعدادات النسخ الاحتياطي التلقائي عبر تيليجرام
     c.execute('''CREATE TABLE IF NOT EXISTS telegram_backup_settings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -292,6 +312,27 @@ def init_db():
                       backup_on_permission_changes, backup_file_name_pattern) 
                      VALUES (0, 1, 1, 1, 1, 1, 'backup_{timestamp}')""")
     
+    # Create default statuses
+    default_statuses = [
+        ('ارملة', 'أرملة', 1),
+        ('مطلقة', 'مطلقة', 2),
+        ('اعاقة', 'إعاقة', 3),
+        ('كبير بالعمر', 'كبير بالعمر', 4),
+        ('حالة صعبة', 'حالة صعبة', 5),
+        ('مرض تلاسيميا', 'مرض تلاسيميا', 6)
+    ]
+    
+    # Get admin user id for default statuses
+    c.execute("SELECT id FROM users WHERE username = 'admin'")
+    admin_user = c.fetchone()
+    if admin_user:
+        admin_id = admin_user[0]
+        for status_name, status_desc, status_order in default_statuses:
+            c.execute("SELECT * FROM statuses WHERE name = ?", (status_name,))
+            if not c.fetchone():
+                c.execute("INSERT INTO statuses (name, description, display_order, created_by) VALUES (?, ?, ?, ?)",
+                         (status_name, status_desc, status_order, admin_id))
+    
     # Create default permissions
     default_permissions = [
         ('view_citizens', 'عرض بيانات المواطنين', 'البيانات'),
@@ -320,7 +361,12 @@ def init_db():
         ('reset_materials_data', 'تصفير بيانات المواد', 'تصفير قاعدة البيانات'),
         ('reset_all_data', 'تصفير جميع البيانات (عدا الإدمن)', 'تصفير قاعدة البيانات'),
         ('import_citizens_excel', 'استيراد بيانات المواطنين من Excel', 'استيراد البيانات'),
-        ('manage_telegram_backup', 'إدارة النسخ الاحتياطي التلقائي عبر تيليجرام', 'النسخ الاحتياطية')
+        ('manage_telegram_backup', 'إدارة النسخ الاحتياطي التلقائي عبر تيليجرام', 'النسخ الاحتياطية'),
+        ('manage_statuses', 'إدارة حالات المواطنين', 'الإدارة'),
+        ('view_statuses', 'عرض حالات المواطنين', 'الحالات'),
+        ('add_statuses', 'إضافة حالات المواطنين', 'الحالات'),
+        ('edit_statuses', 'تعديل حالات المواطنين', 'الحالات'),
+        ('delete_statuses', 'حذف حالات المواطنين', 'الحالات')
     ]
     
     for perm_name, perm_desc, perm_category in default_permissions:
@@ -407,7 +453,8 @@ def assign_default_permissions(user_id, granted_by_user_id=1):
         'add_citizens',       # إضافة بيانات المواطنين  
         'edit_citizens',      # تعديل بيانات المواطنين
         'export_data',        # تصدير البيانات الأساسي
-        'view_reports'        # عرض التقارير
+        'view_reports',       # عرض التقارير
+        'view_material_distributions'  # عرض سجل توزيع المواد
     ]
     
     conn = get_db_connection()
@@ -862,6 +909,13 @@ def add_citizen():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
+    conn = get_db_connection()
+    c = conn.cursor()
+    
+    # Get active statuses for dropdown
+    c.execute("SELECT name FROM statuses WHERE is_active = 1 ORDER BY display_order ASC, name")
+    statuses = c.fetchall()
+    
     if request.method == 'POST':
         full_name = request.form['full_name']
         national_id = request.form['national_id']
@@ -870,6 +924,7 @@ def add_citizen():
         family_members = int(request.form['family_members'])
         address = request.form['address']
         notes = request.form.get('notes', '')
+        photo_url = request.form.get('photo', '').strip()
         
         # إنشاء كائن البيانات للاحتفاظ بها في حالة الخطأ
         form_data = {
@@ -885,18 +940,18 @@ def add_citizen():
         # Validation
         if len(national_id) != 11 or not national_id.isdigit():
             flash('الرقم الوطني يجب أن يكون 11 رقم', 'error')
-            return render_template('add_citizen.html', form_data=form_data)
+            conn.close()
+            return render_template('add_citizen.html', form_data=form_data, statuses=statuses)
         
         if len(phone) != 10 or not phone.startswith('09') or not phone.isdigit():
             flash('رقم الجوال يجب أن يكون 10 أرقام ويبدأ ب 09', 'error')
-            return render_template('add_citizen.html', form_data=form_data)
+            conn.close()
+            return render_template('add_citizen.html', form_data=form_data, statuses=statuses)
         
         if family_members > 50:
             flash('عدد أفراد الأسرة لا يمكن أن يتجاوز 50', 'error')
-            return render_template('add_citizen.html', form_data=form_data)
-        
-        conn = get_db_connection()
-        c = conn.cursor()
+            conn.close()
+            return render_template('add_citizen.html', form_data=form_data, statuses=statuses)
         
         # Check if national_id already exists
         c.execute("SELECT * FROM citizens WHERE national_id = ?", (national_id,))
@@ -913,13 +968,13 @@ def add_citizen():
                 'address': address,
                 'notes': notes
             }
-            return render_template('add_citizen.html', form_data=form_data)
+            return render_template('add_citizen.html', form_data=form_data, statuses=statuses)
         
         try:
             c.execute('''INSERT INTO citizens 
-                        (full_name, national_id, phone, status, family_members, address, notes, added_by)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-                     (full_name, national_id, phone, status, family_members, address, notes, session['username']))
+                        (full_name, national_id, phone, status, family_members, address, notes, added_by, photo)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                     (full_name, national_id, phone, status, family_members, address, notes, session['username'], photo_url))
             conn.commit()
             flash('تم إضافة البيانات بنجاح', 'success')
             conn.close()
@@ -931,8 +986,10 @@ def add_citizen():
         except Exception as e:
             flash('خطأ في إضافة البيانات', 'error')
             conn.close()
+    else:
+        conn.close()
     
-    return render_template('add_citizen.html')
+    return render_template('add_citizen.html', statuses=statuses)
 
 @app.route('/view_citizens')
 def view_citizens():
@@ -947,6 +1004,10 @@ def view_citizens():
     
     conn = get_db_connection()
     c = conn.cursor()
+    
+    # Get active statuses for filter dropdown
+    c.execute("SELECT name FROM statuses WHERE is_active = 1 ORDER BY display_order ASC, name")
+    statuses = c.fetchall()
     
     # Base query with material distribution counts
     if material_filter:
@@ -1015,7 +1076,8 @@ def view_citizens():
                          total_pages=total_pages,
                          search=search,
                          status_filter=status_filter,
-                         material_filter=material_filter)
+                         material_filter=material_filter,
+                         statuses=statuses)
 
 @app.route('/admin')
 def admin():
@@ -1170,6 +1232,10 @@ def edit_citizen(citizen_id):
     conn = get_db_connection()
     c = conn.cursor()
     
+    # Get active statuses for dropdown
+    c.execute("SELECT name FROM statuses WHERE is_active = 1 ORDER BY display_order ASC, name")
+    statuses = c.fetchall()
+    
     # التحقق من صلاحية التعديل
     if session.get('is_admin'):
         c.execute("SELECT * FROM citizens WHERE id = ?", (citizen_id,))
@@ -1190,6 +1256,7 @@ def edit_citizen(citizen_id):
         family_members = int(request.form['family_members'])
         address = request.form['address']
         notes = request.form.get('notes', '')
+        photo_url = request.form.get('photo', '').strip()
         
         # معالجة assigned_to للمديرين فقط مع validation
         assigned_to = None
@@ -1211,7 +1278,7 @@ def edit_citizen(citizen_id):
                 c.execute("SELECT id, username FROM users ORDER BY username")
                 users = c.fetchall()
             conn.close()
-            return render_template('edit_citizen.html', citizen=citizen, users=users)
+            return render_template('edit_citizen.html', citizen=citizen, users=users, statuses=statuses)
         
         # Validation
         if len(national_id) != 11 or not national_id.isdigit():
@@ -1236,23 +1303,23 @@ def edit_citizen(citizen_id):
                     # نسب البيانات: تحديث كل من assigned_to و added_by
                     c.execute('''UPDATE citizens SET 
                                 full_name = ?, national_id = ?, phone = ?, status = ?, 
-                                family_members = ?, address = ?, notes = ?, assigned_to = ?, added_by = ?
+                                family_members = ?, address = ?, notes = ?, photo = ?, assigned_to = ?, added_by = ?
                                 WHERE id = ?''',
-                             (full_name, national_id, phone, status, family_members, address, notes, assigned_to, assigned_to, citizen_id))
+                             (full_name, national_id, phone, status, family_members, address, notes, photo_url, assigned_to, assigned_to, citizen_id))
                 else:
                     # إلغاء النسب: تحديث assigned_to فقط (نحافظ على added_by الأصلي)
                     c.execute('''UPDATE citizens SET 
                                 full_name = ?, national_id = ?, phone = ?, status = ?, 
-                                family_members = ?, address = ?, notes = ?, assigned_to = ?
+                                family_members = ?, address = ?, notes = ?, photo = ?, assigned_to = ?
                                 WHERE id = ?''',
-                             (full_name, national_id, phone, status, family_members, address, notes, assigned_to, citizen_id))
+                             (full_name, national_id, phone, status, family_members, address, notes, photo_url, assigned_to, citizen_id))
             else:
                 # المستخدمون العاديون لا يمكنهم تحديث assigned_to (نحافظ على القيمة الحالية)
                 c.execute('''UPDATE citizens SET 
                             full_name = ?, national_id = ?, phone = ?, status = ?, 
-                            family_members = ?, address = ?, notes = ?
+                            family_members = ?, address = ?, notes = ?, photo = ?
                             WHERE id = ?''',
-                         (full_name, national_id, phone, status, family_members, address, notes, citizen_id))
+                         (full_name, national_id, phone, status, family_members, address, notes, photo_url, citizen_id))
             conn.commit()
             flash('تم تحديث البيانات بنجاح', 'success')
             conn.close()
@@ -1272,23 +1339,29 @@ def edit_citizen(citizen_id):
         users = c.fetchall()
     
     conn.close()
-    return render_template('edit_citizen.html', citizen=citizen, users=users)
+    return render_template('edit_citizen.html', citizen=citizen, users=users, statuses=statuses)
 
 @app.route('/export')
 def export():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
+    conn = get_db_connection()
+    c = conn.cursor()
+    
+    # Get active statuses for filter
+    c.execute("SELECT name FROM statuses WHERE is_active = 1 ORDER BY display_order ASC, name")
+    statuses = c.fetchall()
+    
     # Get all users if admin or has manage_users permission
     users = []
     if session.get('is_admin') or has_permission(session['user_id'], 'manage_users'):
-        conn = get_db_connection()
-        c = conn.cursor()
         c.execute("SELECT username FROM users ORDER BY username")
         users = [row[0] for row in c.fetchall()]
-        conn.close()
     
-    return render_template('export.html', users=users)
+    conn.close()
+    
+    return render_template('export.html', users=users, statuses=statuses)
 
 @app.route('/export_advanced', methods=['GET', 'POST'])
 def export_advanced():
@@ -1843,6 +1916,36 @@ def citizen_details(citizen_id):
     
     conn.close()
     return jsonify({'error': 'Not found'}), 404
+
+@app.route('/citizen_view/<int:citizen_id>')
+def citizen_view(citizen_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM citizens WHERE id = ?", (citizen_id,))
+    citizen = c.fetchone()
+    
+    if citizen:
+        # Get material distributions for this citizen
+        c.execute("""
+            SELECT m.name, md.quantity, m.unit, md.distribution_date, u.username, md.notes
+            FROM material_distributions md
+            JOIN materials m ON md.material_id = m.id
+            JOIN users u ON md.distributed_by = u.id
+            WHERE md.citizen_id = ?
+            ORDER BY md.distribution_date DESC
+        """, (citizen_id,))
+        distributions = c.fetchall()
+        
+        conn.close()
+        
+        return render_template('citizen_detail.html', citizen=citizen, distributions=distributions)
+    
+    conn.close()
+    flash('المواطن غير موجود', 'error')
+    return redirect(url_for('view_citizens'))
 
 @app.route('/delete_citizen/<int:citizen_id>', methods=['DELETE'])
 def delete_citizen(citizen_id):
@@ -3060,6 +3163,7 @@ def distribute_material():
         citizen_ids = request.form.getlist('citizen_ids[]')
         material_id = request.form['material_id']
         quantity = int(request.form.get('quantity', 1))
+        distribution_date = request.form.get('distribution_date', '').strip()
         notes = request.form.get('notes', '').strip()
         
         # التحقق من اختيار مواطن واحد على الأقل
@@ -3068,13 +3172,19 @@ def distribute_material():
             conn.close()
             return redirect(url_for('distribute_material'))
         
+        # التحقق من تاريخ ووقت التوزيع
+        if not distribution_date:
+            flash('يجب تحديد تاريخ ووقت التوزيع', 'error')
+            conn.close()
+            return redirect(url_for('distribute_material'))
+        
         try:
             # إنشاء سجل توزيع منفصل لكل مواطن
             for citizen_id in citizen_ids:
                 c.execute("""
-                    INSERT INTO material_distributions (citizen_id, material_id, quantity, distributed_by, notes)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (citizen_id, material_id, quantity, session['user_id'], notes))
+                    INSERT INTO material_distributions (citizen_id, material_id, quantity, distributed_by, distribution_date, notes)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (citizen_id, material_id, quantity, session['user_id'], distribution_date, notes))
             
             conn.commit()
             
@@ -3325,6 +3435,148 @@ def export_materials():
     
     return response
 
+# Status Management Routes
+@app.route('/manage_statuses')
+@require_permission('manage_statuses')
+def manage_statuses():
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT s.id, s.name, s.description, s.is_active, s.display_order, u.username, s.created_at
+        FROM statuses s
+        LEFT JOIN users u ON s.created_by = u.id
+        ORDER BY s.display_order ASC, s.created_at DESC
+    """)
+    statuses = c.fetchall()
+    conn.close()
+    
+    return render_template('manage_statuses.html', statuses=statuses)
+
+@app.route('/add_status', methods=['GET', 'POST'])
+@require_permission('manage_statuses')
+def add_status():
+    
+    if request.method == 'POST':
+        name = request.form['name'].strip()
+        description = request.form.get('description', '').strip()
+        display_order = int(request.form.get('display_order', 0))
+        
+        if len(name) < 2:
+            flash('اسم الحالة يجب أن يكون حرفين على الأقل', 'error')
+            return render_template('add_status.html')
+        
+        conn = get_db_connection()
+        c = conn.cursor()
+        
+        try:
+            c.execute("INSERT INTO statuses (name, description, display_order, created_by) VALUES (?, ?, ?, ?)",
+                     (name, description, display_order, session['user_id']))
+            conn.commit()
+            flash('تم إضافة الحالة بنجاح', 'success')
+            conn.close()
+            
+            # تفعيل النسخ الاحتياطي التلقائي
+            trigger_automatic_backup('status')
+            
+            return redirect(url_for('manage_statuses'))
+            
+        except sqlite3.IntegrityError:
+            flash('اسم الحالة موجود مسبقاً', 'error')
+            conn.close()
+    
+    return render_template('add_status.html')
+
+@app.route('/edit_status/<int:status_id>', methods=['GET', 'POST'])
+@require_permission('manage_statuses')
+def edit_status(status_id):
+    conn = get_db_connection()
+    c = conn.cursor()
+    
+    c.execute("SELECT * FROM statuses WHERE id = ?", (status_id,))
+    status = c.fetchone()
+    
+    if not status:
+        flash('الحالة غير موجودة', 'error')
+        conn.close()
+        return redirect(url_for('manage_statuses'))
+    
+    if request.method == 'POST':
+        name = request.form['name'].strip()
+        description = request.form.get('description', '').strip()
+        display_order = int(request.form.get('display_order', 0))
+        is_active = 1 if 'is_active' in request.form else 0
+        
+        if len(name) < 2:
+            flash('اسم الحالة يجب أن يكون حرفين على الأقل', 'error')
+            conn.close()
+            return render_template('edit_status.html', status=status)
+        
+        # Check if name exists for another status
+        c.execute("SELECT id FROM statuses WHERE name = ? AND id != ?", (name, status_id))
+        if c.fetchone():
+            flash('اسم الحالة موجود مسبقاً لحالة أخرى', 'error')
+            conn.close()
+            return render_template('edit_status.html', status=status)
+        
+        try:
+            # حفظ الاسم القديم للحالة
+            old_status_name = status[1]  # status[1] is the name field
+            
+            # تحديث جدول الحالات
+            c.execute("UPDATE statuses SET name = ?, description = ?, display_order = ?, is_active = ? WHERE id = ?",
+                     (name, description, display_order, is_active, status_id))
+            
+            # إذا تم تغيير اسم الحالة، تحديث جميع المواطنين الذين لديهم الحالة القديمة
+            updated_citizens = 0
+            if old_status_name != name:
+                c.execute("UPDATE citizens SET status = ? WHERE status = ?", (name, old_status_name))
+                updated_citizens = c.rowcount
+            
+            # تنفيذ التغييرات في قاعدة البيانات
+            conn.commit()
+            conn.close()
+            
+            # تفعيل النسخ الاحتياطي التلقائي
+            trigger_automatic_backup('status')
+            
+            # عرض رسالة النجاح بعد التأكد من نجاح العملية
+            if old_status_name != name:
+                flash(f'تم تحديث الحالة بنجاح وتحديث {updated_citizens} سجل مواطن', 'success')
+            else:
+                flash('تم تحديث الحالة بنجاح', 'success')
+            
+            return redirect(url_for('manage_statuses'))
+            
+        except Exception as e:
+            flash('خطأ في تحديث الحالة', 'error')
+            conn.close()
+    
+    conn.close()
+    return render_template('edit_status.html', status=status)
+
+@app.route('/delete_status/<int:status_id>')
+@require_permission('manage_statuses')
+def delete_status(status_id):
+    conn = get_db_connection()
+    c = conn.cursor()
+    
+    # Check if status is used by any citizen
+    c.execute("SELECT COUNT(*) FROM citizens WHERE status = (SELECT name FROM statuses WHERE id = ?)", (status_id,))
+    count = c.fetchone()[0]
+    
+    if count > 0:
+        flash('لا يمكن حذف الحالة لأنها مستخدمة من قبل المواطنين', 'error')
+    else:
+        c.execute("DELETE FROM statuses WHERE id = ?", (status_id,))
+        conn.commit()
+        flash('تم حذف الحالة بنجاح', 'success')
+        
+        # تفعيل النسخ الاحتياطي التلقائي
+        trigger_automatic_backup('status')
+    
+    conn.close()
+    return redirect(url_for('manage_statuses'))
+
 @app.route('/export_citizen_materials/<int:citizen_id>')
 @require_permission('view_distributions')
 def export_citizen_materials(citizen_id):
@@ -3454,6 +3706,195 @@ def export_pdf():
         output,
         as_attachment=True,
         download_name=f'citizens_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf',
+        mimetype='application/pdf'
+    )
+
+@app.route('/print_citizen_distributions/<int:citizen_id>')
+@require_permission('view_material_distributions')
+def print_citizen_distributions(citizen_id):
+    """طباعة سجل التوزيع مع اسم المواطن بصيغة PDF"""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    conn = get_db_connection()
+    c = conn.cursor()
+    
+    # Get citizen information
+    c.execute("SELECT * FROM citizens WHERE id = ?", (citizen_id,))
+    citizen = c.fetchone()
+    
+    if not citizen:
+        conn.close()
+        flash('المواطن غير موجود', 'error')
+        return redirect(url_for('view_citizens'))
+    
+    # Get material distributions for this citizen
+    c.execute("""
+        SELECT m.name, md.quantity, m.unit, md.distribution_date, u.username, md.notes
+        FROM material_distributions md
+        JOIN materials m ON md.material_id = m.id
+        JOIN users u ON md.distributed_by = u.id
+        WHERE md.citizen_id = ?
+        ORDER BY md.distribution_date DESC
+    """, (citizen_id,))
+    distributions = c.fetchall()
+    
+    conn.close()
+    
+    if not distributions:
+        flash('لا توجد سجلات توزيع لهذا المواطن', 'error')
+        return redirect(url_for('citizen_view', citizen_id=citizen_id))
+    
+    # Create PDF with Arabic support
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import Paragraph, Spacer
+    from reportlab.lib.units import cm
+    from reportlab.lib.colors import black, white, lightgrey
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    import arabic_reshaper
+    from bidi.algorithm import get_display
+    
+    # Register Arabic font - try multiple options
+    arabic_font = 'Helvetica'  # Default fallback
+    
+    # Try DejaVu Sans first (best option)
+    try:
+        pdfmetrics.registerFont(TTFont('DejaVuSans', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
+        arabic_font = 'DejaVuSans'
+    except:
+        # Try Noto fonts
+        try:
+            pdfmetrics.registerFont(TTFont('NotoSans', '/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf'))
+            arabic_font = 'NotoSans'
+        except:
+            # Try Liberation fonts
+            try:
+                pdfmetrics.registerFont(TTFont('LiberationSans', '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf'))
+                arabic_font = 'LiberationSans'
+            except:
+                # Use Helvetica as last resort (may not render Arabic properly)
+                arabic_font = 'Helvetica'
+    
+    def format_arabic_text(text):
+        """Format Arabic text for proper display in PDF"""
+        if text and isinstance(text, str):
+            reshaped_text = arabic_reshaper.reshape(text)
+            return get_display(reshaped_text)
+        return text or ""
+    
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm, 
+                           leftMargin=2*cm, rightMargin=2*cm)
+    
+    story = []
+    
+    styles = getSampleStyleSheet()
+    
+    # Title style with Arabic support
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        spaceAfter=20,
+        alignment=1,  # Center
+        textColor=black,
+        fontName=arabic_font
+    )
+    
+    # Header style with Arabic support
+    header_style = ParagraphStyle(
+        'CustomHeader',
+        parent=styles['Heading2'],
+        fontSize=14,
+        spaceAfter=10,
+        alignment=2,  # Right align for Arabic
+        textColor=black,
+        fontName=arabic_font
+    )
+    
+    # Add title
+    story.append(Paragraph(format_arabic_text("سجل توزيع المواد"), title_style))
+    story.append(Spacer(1, 0.5*cm))
+    
+    # Add citizen info (name only as requested)
+    citizen_info = f"""
+    {format_arabic_text(citizen[1])}
+    """
+    story.append(Paragraph(citizen_info, header_style))
+    story.append(Spacer(1, 0.5*cm))
+    
+    # Create distributions table with Arabic headers (RTL order)
+    table_data = [[
+        format_arabic_text('ملاحظات'),
+        format_arabic_text('الموزع'), 
+        format_arabic_text('تاريخ التوزيع'), 
+        format_arabic_text('الوحدة'), 
+        format_arabic_text('الكمية'), 
+        format_arabic_text('المادة')
+    ]]
+    
+    for dist in distributions:
+        table_data.append([
+            format_arabic_text(dist[5]) if dist[5] else '-',  # Notes
+            format_arabic_text(dist[4]),  # Distributed by
+            dist[3],  # Distribution date
+            format_arabic_text(dist[2]),  # Unit
+            str(dist[1]),  # Quantity
+            format_arabic_text(dist[0]),  # Material name
+        ])
+    
+    # Create and style the table with proper Arabic support and RTL alignment
+    # Column order: ملاحظات، الموزع، تاريخ التوزيع، الوحدة، الكمية، المادة
+    table = Table(table_data, colWidths=[3*cm, 2.5*cm, 3*cm, 2*cm, 2*cm, 3*cm])
+    table.setStyle(TableStyle([
+        # Header styling with Arabic font
+        ('BACKGROUND', (0, 0), (-1, 0), lightgrey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), black),
+        ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),  # Right align for Arabic
+        ('FONTNAME', (0, 0), (-1, -1), arabic_font),  # Apply Arabic font to entire table
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('TOPPADDING', (0, 0), (-1, 0), 8),
+        
+        # Data rows styling with Arabic font
+        ('BACKGROUND', (0, 1), (-1, -1), white),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
+        ('GRID', (0, 0), (-1, -1), 1, black),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 1), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+        
+        # Center align for specific columns (date, quantity)
+        ('ALIGN', (2, 1), (2, -1), 'CENTER'),  # Date column
+        ('ALIGN', (4, 1), (4, -1), 'CENTER'),  # Quantity column
+    ]))
+    
+    story.append(table)
+    story.append(Spacer(1, 1*cm))
+    
+    # Add footer with Arabic support
+    footer_text = f"{format_arabic_text('تم إنشاء هذا التقرير في:')} {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    footer_style = ParagraphStyle(
+        'Footer',
+        parent=styles['Normal'],
+        fontSize=10,
+        alignment=1,  # Center
+        textColor=black,
+        fontName=arabic_font
+    )
+    story.append(Paragraph(footer_text, footer_style))
+    
+    # Build PDF
+    doc.build(story)
+    output.seek(0)
+    
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=f'سجل_توزيع_{citizen[1]}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf',
         mimetype='application/pdf'
     )
 
@@ -3669,6 +4110,15 @@ def import_citizens_process():
             flash(f'الأعمدة التالية مفقودة في ملف Excel: {", ".join(missing_columns)}', 'error')
             return redirect(url_for('import_citizens'))
         
+        # جلب الحالات المتاحة من قاعدة البيانات
+        c.execute("SELECT name FROM statuses WHERE is_active = 1")
+        valid_statuses = [row[0] for row in c.fetchall()]
+        
+        if not valid_statuses:
+            flash('لا توجد حالات متاحة في النظام. يرجى إضافة حالات أولاً', 'error')
+            conn.close()
+            return redirect(url_for('import_citizens'))
+        
         # تنظيف البيانات وإضافتها
         success_count = 0
         error_count = 0
@@ -3702,6 +4152,12 @@ def import_citizens_process():
                 
                 if len(phone) != 10 or not phone.startswith('09') or not phone.isdigit():
                     error_details.append(f'السطر {index + 2}: رقم الجوال غير صحيح ({phone})')
+                    error_count += 1
+                    continue
+                
+                # التحقق من صحة الحالة
+                if status not in valid_statuses:
+                    error_details.append(f'السطر {index + 2}: الحالة "{status}" غير موجودة في النظام. الحالات المتاحة: {", ".join(valid_statuses)}')
                     error_count += 1
                     continue
                 
@@ -3749,12 +4205,24 @@ def import_citizens_process():
 @require_permission('import_citizens_excel')
 def download_excel_template():
     """تحميل نموذج Excel لاستيراد بيانات المواطنين"""
+    # جلب الحالات من قاعدة البيانات
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT name FROM statuses WHERE is_active = 1 ORDER BY display_order ASC LIMIT 2")
+    statuses = c.fetchall()
+    conn.close()
+    
+    # استخدام الحالات من قاعدة البيانات أو قيم افتراضية
+    status_examples = [status[0] for status in statuses] if statuses else ['حالة 1', 'حالة 2']
+    if len(status_examples) < 2:
+        status_examples.append('حالة 2')
+    
     # إنشاء نموذج Excel
     data = {
         'الاسم الثلاثي': ['أحمد محمد علي', 'فاطمة أحمد محمد'],
         'الرقم الوطني': ['12345678901', '12345678902'],
         'الجوال': ['0912345678', '0987654321'],
-        'الحالة': ['ارملة', 'حالة صعبة'],
+        'الحالة': status_examples[:2],
         'أفراد الأسرة': [5, 3],
         'العنوان': ['غزة - الشجاعية', 'خان يونس - المواصي'],
         'الملاحظات': ['بحاجة لمساعدة عاجلة', 'حالة خاصة']
