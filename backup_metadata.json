@@ -1,6 +1,6 @@
 {
-  "backup_date": "2025-09-30T09:43:37.643068",
-  "backup_type": "full",
-  "admin_user": "admin",
-  "version": "1.0"
+  "backup_date": "2025-10-19T06:44:17.452941",
+  "backup_type": "auto",
+  "trigger_action": "تعديل في user",
+  "system_version": "1.0"
 }
